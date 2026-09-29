@@ -47,6 +47,7 @@ class WindowReading:
     events: list[Event]
     conditions: dict
     raw: str = ""
+    source: str = "main"
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -72,13 +73,15 @@ def _as_float(value, default: float) -> float:
         return default
 
 
-def read_window(client: TokenFactoryClient, model: str, frames: list[Frame], window: int) -> WindowReading:
+def read_window(client: TokenFactoryClient, model: str, frames: list[Frame], window: int,
+                source: str = "main") -> WindowReading:
     labels = ", ".join(f.label() for f in frames)
     content = [text_part(COSMOS_PROMPT.format(n=len(frames), labels=labels))]
     content += [image_part(f.to_b64_jpeg()) for f in frames]
     result = client.chat(
         model,
         [{"role": "user", "content": content}],
+        task="see",
         offline_reply=lambda: _stub_reply(frames),
         temperature=0.2,
         max_tokens=4096,
@@ -101,4 +104,4 @@ def read_window(client: TokenFactoryClient, model: str, frames: list[Frame], win
         # Keep the free-text reading so Ultra still sees it.
         events.append(Event(t_start=lo, t_end=hi, what=result.text.strip()[:2000], visibility="partial", window=window))
     return WindowReading(window=window, t_start=lo, t_end=hi, frame_times=[f.t for f in frames],
-                         events=events, conditions=conditions, raw=result.text)
+                         events=events, conditions=conditions, raw=result.text, source=source)

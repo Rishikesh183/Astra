@@ -32,17 +32,24 @@ def fake_tavily(calls):
 # --- evidence ---------------------------------------------------------------
 
 def test_link_picks_nearest_frames_and_overlapping_observations(clip):
-    frames = sample_frames(clip, max_frames=6)
-    readings = [WindowReading(0, 0, 10, [f.t for f in frames], [
+    frames = [{"t": f.t, "file": f.filename} for f in sample_frames(clip, max_frames=6)]
+    windows = [WindowReading(0, 0, 10, [f["t"] for f in frames], [
         Event(1.0, 3.0, "car A moves left", visibility="clear"),
         Event(6.0, 7.0, "car B brakes", visibility="partial"),
-    ], {})]
-    out = evidence.link({"claim_id": "c1", "evidence_times": [6.4, 2.0]}, frames, readings)
-    assert out["jump_to"] == 2.0
-    assert [f["t"] for f in out["evidence_frames"]] == sorted(f["t"] for f in out["evidence_frames"])
-    assert all(f["file"].startswith("frame_") for f in out["evidence_frames"])
-    assert [o["what"] for o in out["observations"]] == ["car A moves left", "car B brakes"]
-    empty = evidence.link({"claim_id": "c2", "evidence_times": []}, frames, readings)
+    ], {}).to_dict()]
+    extra = {"frames": [{"t": 0.5, "file": "e1_frame_0000.50s.jpg"}],
+             "windows": [{"window": 0, "events": [{"t_start": 0, "t_end": 1, "what": "rear camera: impact"}]}]}
+    sources = {"main": {"frames": frames, "windows": windows}, "e1": extra}
+    out = evidence.link({"claim_id": "c1", "evidence": [
+        {"source": "e1", "t": 0.6}, {"source": "main", "t": 6.4}, {"source": "main", "t": 2.0},
+        {"source": "e9", "t": 1.0}]}, sources)
+    assert out["jump_to"] == 2.0 and out["jump"] == {"source": "main", "t": 2.0}
+    assert [f["source"] for f in out["evidence_frames"]] == ["main", "main", "e1"]
+    assert out["evidence_frames"][-1]["file"] == "e1_frame_0000.50s.jpg"
+    assert [o["what"] for o in out["observations"]] == ["car A moves left", "car B brakes", "rear camera: impact"]
+    only_extra = evidence.link({"claim_id": "c3", "evidence": [{"source": "e1", "t": 0.2}]}, sources)
+    assert only_extra["jump_to"] is None and only_extra["jump"]["source"] == "e1"
+    empty = evidence.link({"claim_id": "c2", "evidence": []}, sources)
     assert empty["jump_to"] is None and empty["evidence_frames"] == [] and empty["observations"] == []
 
 

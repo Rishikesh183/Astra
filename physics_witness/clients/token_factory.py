@@ -24,28 +24,48 @@ class ChatResult:
     cached: bool = False
 
 
+TOKEN_KEYS = ("prompt_tokens", "completion_tokens")
+
+
 @dataclass
 class UsageLedger:
-    """Tokens per model for the run. Phase 3 turns this into the cost meter."""
+    """Token counts per (task, model). Cached responses cost nothing; their
+    tokens are counted as saved. Listeners hear about every call, which is
+    what drives the live cost meter."""
 
     calls: int = 0
     cache_hits: int = 0
-    by_model: dict[str, dict[str, int]] = field(default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+    _rows: dict[tuple[str, str], dict[str, int]] = field(default_factory=dict)
+    listeners: list[Callable[["UsageLedger"], None]] = field(default_factory=list)
 
-    def record(self, result: ChatResult) -> None:
+    def record(self, result: ChatResult, task: str = "other") -> None:
         self.calls += 1
-        if result.cached:
-            self.cache_hits += 1
-            return
-        bucket = self.by_model[result.model]
-        for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
-            bucket[key] += int(result.usage.get(key, 0) or 0)
+        self.cache_hits += int(result.cached)
+        row = self._rows.setdefault((task, result.model), {
+            "calls": 0, "cached_calls": 0, "prompt_tokens": 0, "completion_tokens": 0,
+            "saved_prompt_tokens": 0, "saved_completion_tokens": 0})
+        row["calls"] += 1
+        prefix = "saved_" if result.cached else ""
+        row["cached_calls"] += int(result.cached)
+        for key in TOKEN_KEYS:
+            row[prefix + key] += int(result.usage.get(key, 0) or 0)
+        for listener in self.listeners:
+            listener(self)
+
+    def rows(self) -> list[dict[str, Any]]:
+        return [{"task": t, "model": m, **v} for (t, m), v in self._rows.items()]
 
     def to_dict(self) -> dict[str, Any]:
+        by_model: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        for (_, model), v in self._rows.items():
+            for key in TOKEN_KEYS:
+                by_model[model][key] += v[key]
+            by_model[model]["total_tokens"] += v["prompt_tokens"] + v["completion_tokens"]
         return {
             "calls": self.calls,
             "cache_hits": self.cache_hits,
-            "by_model": {m: dict(v) for m, v in self.by_model.items()},
+            "by_model": {m: dict(v) for m, v in by_model.items()},
+            "rows": self.rows(),
         }
 
 
@@ -88,14 +108,14 @@ class TokenFactoryClient:
         self._raise_for(resp)
         return sorted(m["id"] for m in resp.json().get("data", []))
 
-    def chat(self, model: str, messages: list[dict[str, Any]], *,
+    def chat(self, model: str, messages: list[dict[str, Any]], *, task: str = "other",
              offline_reply: Callable[[], str] | None = None, **params: Any) -> ChatResult:
         """Chat completion with caching. In offline mode, `offline_reply` supplies the text."""
         if self.offline:
             if offline_reply is None:
                 raise TokenFactoryError("Offline mode (no NEBIUS_API_KEY or PW_OFFLINE=1) and no stub reply given")
             result = ChatResult(text=offline_reply(), model=model or "offline-stub", usage={})
-            self.ledger.record(result)
+            self.ledger.record(result, task)
             return result
         if not model:
             raise TokenFactoryError("No model name configured; run `physics-witness checks` to discover one")
@@ -110,5 +130,5 @@ class TokenFactoryClient:
         data, hit = self.cache.get_or_call("chat", payload, call)
         text = data["choices"][0]["message"].get("content") or ""
         result = ChatResult(text=text, model=model, usage=data.get("usage") or {}, cached=hit)
-        self.ledger.record(result)
+        self.ledger.record(result, task)
         return result

@@ -30,6 +30,9 @@ class Settings:
     cosmos_model: str = ""
     ultra_model: str = ""
     splitter_model: str = ""
+    super_model: str = ""
+    policy: str = "quality"
+    prices_file: Path = field(default_factory=lambda: Path("pricing.json"))
     tavily_api_key: str = ""
     offline: bool = False
     cache_dir: Path = field(default_factory=lambda: Path(".cache/responses"))
@@ -45,6 +48,9 @@ class Settings:
             cosmos_model=env("PW_COSMOS_MODEL", ""),
             ultra_model=env("PW_ULTRA_MODEL", ""),
             splitter_model=env("PW_SPLITTER_MODEL", ""),
+            super_model=env("PW_SUPER_MODEL", ""),
+            policy=(env("PW_POLICY", "") or "quality").strip().lower(),
+            prices_file=Path(env("PW_PRICES_FILE", "") or "pricing.json"),
             tavily_api_key=env("TAVILY_API_KEY", ""),
             offline=_flag("PW_OFFLINE"),
             cache_dir=Path(env("PW_CACHE_DIR", "") or ".cache/responses"),

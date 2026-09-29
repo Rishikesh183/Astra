@@ -34,7 +34,7 @@
   .pill.on { color: var(--ok); background: var(--ok-bg); }
 
   main { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; padding: 16px 20px 32px; max-width: 1500px; margin: 0 auto; }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 12px 16px; } }
+  @media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px; } }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
   .card + .card { margin-top: 16px; }
   .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
@@ -67,7 +67,7 @@
   .claim:hover { background: var(--soft); }
   .claim.sel { border-color: var(--c); background: var(--cb); }
   .claim.live { box-shadow: inset 3px 0 0 var(--accent); }
-  .claim .t { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .claim .t { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; max-width: 120px; }
 
   .evidence .head { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
   .evidence .claimtext { font-weight: 600; }
@@ -97,6 +97,40 @@
   dialog .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
   .err { color: var(--bad); font-size: 13px; min-height: 1em; }
+
+  .tabs { display: flex; gap: 6px; padding: 10px 16px; flex-wrap: wrap; }
+  .tabs button { border: 1px solid var(--line); background: var(--panel); border-radius: 99px; padding: 3px 12px; font-size: 12px; cursor: pointer; color: var(--muted); }
+  .tabs button.on { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+  .tabs + video { border-radius: 0; }
+  .srcbadge { font-size: 10px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .4px; margin-right: 4px; }
+  .newbadge { font-size: 11px; color: var(--accent); white-space: nowrap; }
+  #live:not(:empty) { padding: 10px 14px; border-radius: 10px; background: var(--soft); margin-bottom: 16px; font-size: 13px; }
+  .banner.bad { background: var(--bad-bg); color: var(--bad); }
+  .ask { white-space: pre-wrap; background: var(--soft); border-radius: 8px; padding: 10px 12px; margin: 0 0 10px; font-size: 13px; }
+  .asklist { margin: 0 0 12px; padding-left: 18px; }
+  .asklist li { margin: 6px 0; }
+  details { margin-bottom: 12px; }
+  .upload { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .upload .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .upload input[type=text] { flex: 1; min-width: 160px; }
+  .upload input[type=file] { max-width: 100%; }
+  .history { padding: 0; margin: 0; }
+  .history li { margin: 6px 0 12px; list-style: none; }
+  .history li > div { margin-top: 6px; }
+  .arrow { color: var(--muted); margin: 0 4px; }
+  .meter { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .meter b { font-size: 24px; font-variant-numeric: tabular-nums; }
+  table.cost { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+  table.cost th { text-align: left; color: var(--muted); font-weight: 600; padding: 4px 6px 4px 0; border-bottom: 1px solid var(--line); }
+  table.cost td { padding: 5px 6px 5px 0; border-bottom: 1px dashed var(--line); vertical-align: top; }
+  table.cost td.num, table.cost th.num { text-align: right; white-space: nowrap; }
+  .model { color: var(--muted); font-size: 11px; word-break: break-all; }
+  .steps { list-style: none; padding: 0; margin: 16px auto 0; max-width: 360px; text-align: left; }
+  .steps li { padding: 3px 0; color: var(--muted); }
+  .steps li.cur { color: var(--ink); font-weight: 600; }
+  .steps li.past::before { content: "✓ "; color: var(--ok); }
+  .steps li.cur::before { content: "› "; color: var(--accent); }
+  .steps li.todo::before { content: "· "; }
 </style>
 </head>
 <body>
@@ -134,6 +168,10 @@
 
 <script>
 const VERDICT = { supported: "Supported", contradicted: "Contradicted", cant_tell: "Can't tell" };
+const STAGES = [
+  ["sampling", "Sample frames"], ["seeing", "Cosmos reads the frames"], ["splitting", "Split the story into claims"],
+  ["context", "Look up weather and place"], ["judging", "Cross-examine"], ["asking", "Write the evidence request"],
+];
 const $ = (s, el = document) => el.querySelector(s);
 const h = (tag, attrs = {}, ...kids) => {
   const el = document.createElement(tag);
@@ -147,8 +185,11 @@ const h = (tag, attrs = {}, ...kids) => {
   return el;
 };
 const fmt = t => (t == null ? "–" : `${Number(t).toFixed(2)}s`);
+const usd = x => (x == null ? null : x < 0.01 ? `$${x.toFixed(4)}` : `$${x.toFixed(2)}`);
+const num = n => Number(n || 0).toLocaleString();
+const srcTag = id => (id && id !== "main" ? `Extra ${id.slice(1)}` : null);
 
-let state = { id: null, data: null, selected: null, poll: null };
+let state = { id: null, data: null, source: "main", selected: null, poll: null, rendered: null };
 
 async function api(path, opts) {
   const r = await fetch(path, opts);
@@ -177,16 +218,29 @@ async function loadList(selectId) {
   if (id !== state.id || !state.data) await open(id);
 }
 
+const busy = meta => meta.status === "queued" || meta.status === "running";
+
 async function open(id) {
   clearTimeout(state.poll);
-  state = { id, data: await api(`/api/claims/${id}`), selected: null, poll: null };
-  const { meta } = state.data;
-  if (meta.status === "queued" || meta.status === "running") {
-    renderPending(meta);
-    state.poll = setTimeout(() => open(id).then(() => state.data.meta.status === "done" && loadList(id)), 2000);
+  const data = await api(`/api/claims/${id}`);
+  const fresh = id !== state.id;
+  state = { ...state, id, data, poll: null, ...(fresh ? { source: "main", selected: null, rendered: null } : {}) };
+  const { meta, report } = data;
+  if (busy(meta)) {
+    if (report) {
+      // Re-judge in progress: keep the current screen, update the banner and meter.
+      if (state.rendered !== id) render();
+      updateLive(meta);
+    } else {
+      renderPending(meta);
+    }
+    state.poll = setTimeout(async () => {
+      await open(id);                              // renders the finished report once it's done
+      if (!busy(state.data.meta)) loadList(id);    // refresh the picker's status labels
+    }, 1500);
     return;
   }
-  if (meta.status === "error") return renderError(meta);
+  if (meta.status === "error" && !report) return renderError(meta);
   render();
 }
 
@@ -194,53 +248,83 @@ function renderEmpty() {
   $("#app").replaceChildren(h("div", { class: "empty", style: "grid-column:1/-1" },
     h("p", {}, "No claims yet."), h("button", { class: "btn primary", onclick: openDialog }, "Check a claim")));
 }
-function renderPending(meta) {
-  $("#app").replaceChildren(h("div", { class: "empty", style: "grid-column:1/-1" },
-    h("span", { class: "spinner" }), meta.status === "queued" ? "Queued…" : "Sampling frames, reading the video, cross-examining the story…"));
+
+function stepList(stage) {
+  const idx = STAGES.findIndex(([k]) => k === stage);
+  return h("ul", { class: "steps" }, STAGES.map(([k, label], i) =>
+    h("li", { class: i < idx ? "past" : i === idx ? "cur" : "todo" }, label)));
 }
+
+function renderPending(meta) {
+  const p = meta.progress || {};
+  $("#app").replaceChildren(h("div", { class: "empty", style: "grid-column:1/-1" },
+    h("p", {}, h("span", { class: "spinner" }), meta.status === "queued" ? "Queued…" : (p.detail || "Starting…")),
+    stepList(p.stage),
+    p.cost ? h("div", { class: "card pad", style: "max-width:520px;margin:20px auto 0;text-align:left" }, costCard(p.cost, null, true)) : null));
+}
+
 function renderError(meta) {
   $("#app").replaceChildren(h("div", { class: "card pad", style: "grid-column:1/-1" },
     h("h2", {}, "Run failed"), h("p", {}, meta.error || "Unknown error")));
 }
 
+function updateLive(meta) {
+  const p = meta.progress || {};
+  const banner = $("#live");
+  if (banner) banner.replaceChildren(h("span", { class: "spinner" }),
+    meta.status === "queued" ? "Extra footage queued…" : `Re-judging with the extra footage: ${p.detail || "starting"}`);
+  const meter = $("#meter");
+  if (meter && p.cost) meter.replaceChildren(costCard(p.cost, state.data.report.routing, true));
+  const form = $("#evidence-form");
+  if (form) for (const el of form.elements) el.disabled = true;
+}
+
+// --- main screen -------------------------------------------------------------
+
+function sourceById(id) {
+  return state.data.report.sources.find(s => s.id === id) || state.data.report.sources[0];
+}
+
 function render() {
-  const { report } = state.data;
+  const { report, meta } = state.data;
+  report.sources = report.sources || [{ id: "main", label: "Original video", duration_s: report.duration_s, frames: report.frames, frames_dropped: [], windows: report.windows }];
+  state.rendered = state.id;
   const byId = Object.fromEntries(report.verdicts.map(v => [v.claim_id, v]));
-  const video = h("video", { src: `/api/claims/${state.id}/video`, controls: true, preload: "metadata", playsinline: true });
-  const tl = h("div", { class: "timeline", title: "Click to seek" }, h("div", { class: "track" }));
-  const dur = report.duration_s || 1;
-  const pct = t => `${Math.min(100, Math.max(0, (t / dur) * 100))}%`;
-  for (const f of report.frames) tl.append(h("div", { class: "tick", style: `left:${pct(f.t)}` }));
-  for (const v of report.verdicts) for (const t of v.evidence_times)
-    tl.append(h("div", { class: `mark v-${v.verdict}`, "data-claim": v.claim_id, style: `left:${pct(t)}`, title: `${fmt(t)} · ${v.claim}`,
-      onclick: e => { e.stopPropagation(); select(v.claim_id, t); } }));
-  const head = h("div", { class: "playhead", style: "left:0" });
-  tl.append(head);
-  tl.addEventListener("click", e => {
-    const r = tl.getBoundingClientRect();
-    seek(((e.clientX - r.left) / r.width) * dur);
-  });
+
+  const video = h("video", { controls: true, preload: "metadata", playsinline: true });
+  const tabs = report.sources.length > 1 ? h("div", { class: "tabs" }, report.sources.map(s =>
+    h("button", { "data-src": s.id, onclick: () => showSource(s.id) }, s.label))) : null;
+  const tl = h("div", { class: "timeline", title: "Click to seek" });
   const now = h("span", {}, fmt(0));
+  const info = h("span", {});
   video.addEventListener("timeupdate", () => {
-    head.style.left = pct(video.currentTime);
+    const head = $(".playhead", tl);
+    if (head) head.style.left = pct(video.currentTime);
     now.textContent = fmt(video.currentTime);
     for (const el of document.querySelectorAll(".claim")) {
       const v = byId[el.dataset.claim];
-      el.classList.toggle("live", v.evidence_times.some(t => Math.abs(t - video.currentTime) < 0.4));
+      el.classList.toggle("live", (v.evidence || []).some(r => r.source === state.source && Math.abs(r.t - video.currentTime) < 0.4));
     }
   });
+  tl.addEventListener("click", e => {
+    const r = tl.getBoundingClientRect();
+    seek(state.source, ((e.clientX - r.left) / r.width) * sourceById(state.source).duration_s);
+  });
+  const pct = t => `${Math.min(100, Math.max(0, (t / (sourceById(state.source).duration_s || 1)) * 100))}%`;
 
-  const left = h("section", {},
+  const banners = [
     report.mode !== "live" ? h("div", { class: "banner" }, "Offline mode: no model calls were made, so every verdict is Can't tell. Add NEBIUS_API_KEY to get real readings.") : null,
-    h("div", { class: "card" }, video, tl,
-      h("div", { class: "timeinfo" }, now, h("span", {}, `${report.frames.length} frames sampled · ${report.windows.length} Cosmos windows · ${fmt(dur)}`))),
+    meta.error ? h("div", { class: "banner bad" }, meta.error) : null,
+    h("div", { id: "live" }),
+  ];
+  const left = h("section", {}, banners,
+    h("div", { class: "card" }, tabs, video, tl, h("div", { class: "timeinfo" }, now, info)),
     h("div", { class: "card pad evidence", id: "evidence" }, h("p", { class: "muted" }, "Select a claim to see the frames and reasoning behind its verdict.")));
 
   const counts = report.summary;
   const summary = h("div", { class: "summary" }, ["supported", "contradicted", "cant_tell"].map(k =>
     h("div", { class: `stat v-${k}` }, h("b", {}, counts[k] ?? 0), h("span", {}, VERDICT[k]))));
 
-  // Group claims under the story sentence they came from.
   const groups = new Map();
   for (const c of report.claims) {
     const key = c.source || c.text;
@@ -251,22 +335,165 @@ function render() {
     cs.length > 1 || cs[0].text !== src ? h("q", {}, src) : null,
     cs.map(c => {
       const v = byId[c.id];
+      const times = (v.evidence || []).map(r => (r.source === "main" ? fmt(r.t) : `${srcTag(r.source)} ${fmt(r.t)}`));
       return h("div", { class: `claim v-${v.verdict}`, "data-claim": c.id, onclick: () => select(c.id) },
-        h("span", { class: "tag" }, VERDICT[v.verdict]), h("span", {}, c.text),
-        h("span", { class: "t" }, v.evidence_times.map(fmt).join(", ") || "–"));
+        h("span", { class: "tag" }, VERDICT[v.verdict]),
+        h("span", {}, c.text, v.round ? h("span", { class: "newbadge" }, ` · updated in round ${v.round}`) : null),
+        h("span", { class: "t" }, times.join(", ") || "–"));
     }))));
 
   const right = h("section", {},
     h("div", { class: "card pad" }, h("h2", {}, "Verdicts"), summary),
     h("div", { class: "card pad" }, h("h2", {}, "The claimant's story"), story),
+    askCard(report, meta),
+    historyCard(report),
     renderContext(report.context),
-    h("div", { class: "card pad muted src" }, `Models: ${Object.entries(report.models).map(([k, v]) => `${k} = ${v || "–"}`).join(" · ")}`,
-      h("br"), `Calls: ${report.usage.calls} (${report.usage.cache_hits} cached) · ${report.elapsed_s}s`));
+    h("div", { class: "card pad", id: "meter" }, costCard(report.cost, report.routing, false, report)));
 
   $("#app").replaceChildren(left, right);
   state.video = video;
-  const first = report.verdicts.find(v => v.verdict === "contradicted") || report.verdicts[0];
-  if (first) select(first.claim_id, undefined, false);
+  state.tl = tl;
+  state.info = info;
+  state.pct = pct;
+  state.byId = byId;
+  showSource(sourceById(state.source).id, true);
+  const first = byId[state.selected] || report.verdicts.find(v => v.verdict === "contradicted") || report.verdicts[0];
+  if (first) select(first.claim_id, false);
+  if (busy(meta)) updateLive(meta);
+}
+
+function showSource(id, force = false) {
+  if (id === state.source && !force) return Promise.resolve();
+  const src = sourceById(id);
+  state.source = src.id;
+  for (const b of document.querySelectorAll(".tabs button")) b.classList.toggle("on", b.dataset.src === src.id);
+  const tl = state.tl;
+  tl.replaceChildren(h("div", { class: "track" }));
+  for (const f of src.frames) tl.append(h("div", { class: "tick", style: `left:${state.pct(f.t)}` }));
+  for (const v of state.data.report.verdicts) for (const r of v.evidence || []) if (r.source === src.id)
+    tl.append(h("div", { class: `mark v-${v.verdict}${v.claim_id === state.selected ? " sel" : ""}`, "data-claim": v.claim_id,
+      style: `left:${state.pct(r.t)}`, title: `${fmt(r.t)} · ${v.claim}`,
+      onclick: e => { e.stopPropagation(); select(v.claim_id, false); seek(src.id, r.t); } }));
+  tl.append(h("div", { class: "playhead", style: "left:0" }));
+  const dropped = (src.frames_dropped || []).length;
+  state.info.textContent = `${src.frames.length} frames read by Cosmos${dropped ? ` · ${dropped} near-duplicates skipped` : ""} · ${src.windows.length} windows · ${fmt(src.duration_s)}`;
+  const loaded = new Promise(res => state.video.addEventListener("loadedmetadata", res, { once: true }));
+  state.video.src = `/api/claims/${state.id}/video${src.id === "main" ? "" : `?source=${src.id}`}`;
+  return loaded;
+}
+
+async function seek(source, t) {
+  if (!state.video || t == null) return;
+  if (source !== state.source) {
+    const ready = showSource(source);
+    await Promise.race([ready, new Promise(r => setTimeout(r, 3000))]);
+  }
+  state.video.pause();
+  state.video.currentTime = t;
+}
+
+function select(claimId, doSeek = true) {
+  const { report } = state.data;
+  const v = state.byId[claimId];
+  state.selected = claimId;
+  for (const el of document.querySelectorAll(".claim")) el.classList.toggle("sel", el.dataset.claim === claimId);
+  for (const el of document.querySelectorAll(".mark")) el.classList.toggle("sel", el.dataset.claim === claimId);
+  const jump = v.jump || (v.jump_to != null ? { source: "main", t: v.jump_to } : null);
+  if (doSeek && jump) seek(jump.source, jump.t);
+  const label = id => sourceById(id).label;
+  const ask = (report.request?.items || []).find(i => i.claim_id === claimId);
+
+  const box = $("#evidence");
+  box.className = `card pad evidence v-${v.verdict}`;
+  box.replaceChildren(...[
+    h("div", { class: "head" }, h("span", { class: "tag" }, VERDICT[v.verdict]), h("span", { class: "claimtext" }, v.claim)),
+    h("div", { class: "why" }, v.reasoning || h("span", { class: "muted" }, "No reasoning returned.")),
+    v.verdict === "cant_tell" && (ask || v.needed_evidence) ? h("div", { class: "need" }, h("strong", {}, "Asked the claimant for: "), ask ? ask.ask : v.needed_evidence) : null,
+    v.evidence_frames.length ? h("div", {}, h("h2", {}, "Evidence frames"), h("div", { class: "frames" },
+      v.evidence_frames.map(f => h("figure", { onclick: () => seek(f.source || "main", f.t) },
+        h("img", { src: `/api/claims/${state.id}/frames/${f.file}`, alt: `Frame at ${fmt(f.t)}`, loading: "lazy" }),
+        h("figcaption", {}, srcTag(f.source) ? h("span", { class: "srcbadge" }, srcTag(f.source)) : null, fmt(f.t)))))) : null,
+    v.observations.length ? h("div", {}, h("h2", { style: "margin-top:12px" }, "What Cosmos saw"), h("ul", { class: "obs" },
+      v.observations.map(o => h("li", {},
+        srcTag(o.source) ? h("span", { class: "srcbadge", title: label(o.source) }, srcTag(o.source)) : null,
+        h("span", { class: "when", onclick: () => seek(o.source || "main", o.t_start) }, `${fmt(o.t_start)}–${fmt(o.t_end)}`),
+        o.what, o.visibility !== "clear" ? h("span", { class: "muted" }, ` (view: ${o.visibility})`) : null)))) : null,
+  ].filter(Boolean));
+}
+
+// --- act loop ------------------------------------------------------------------
+
+function askCard(report, meta) {
+  const req = report.request;
+  if (!req) return null;
+  const text = { ...Object.fromEntries(report.claims.map(c => [c.id, c.text])) };
+  const copy = h("button", { class: "btn", type: "button", onclick: async () => {
+    try { await navigator.clipboard.writeText(req.message); copy.textContent = "Copied"; } catch { copy.textContent = "Copy failed"; }
+    setTimeout(() => (copy.textContent = "Copy message"), 1500);
+  } }, "Copy message");
+  const err = h("div", { class: "err" });
+  const form = h("form", { class: "upload", id: "evidence-form", onsubmit: async e => {
+    e.preventDefault();
+    err.textContent = "";
+    const fd = new FormData(form);   // read before disabling: disabled inputs are left out of FormData
+    for (const el of form.elements) el.disabled = true;
+    try {
+      await api(`/api/claims/${state.id}/evidence`, { method: "POST", body: fd });
+      await open(state.id);
+    } catch (ex) {
+      err.textContent = ex.message;
+      for (const el of form.elements) el.disabled = false;
+    }
+  } },
+    h("strong", {}, "Got the extra footage?"),
+    h("div", { class: "row" }, h("input", { type: "file", name: "video", accept: "video/*", required: true })),
+    h("div", { class: "row" },
+      h("input", { type: "text", name: "note", placeholder: "What the claimant says it shows (optional)" }),
+      h("button", { class: "btn primary", type: "submit" }, "Re-judge")),
+    err);
+  if (busy(meta)) for (const el of form.elements) el.disabled = true;
+  return h("div", { class: "card pad" },
+    h("h2", {}, `Ask the claimant · ${req.items.length} open ${req.items.length === 1 ? "claim" : "claims"}`),
+    h("ul", { class: "asklist" }, req.items.map(i => h("li", {}, h("strong", {}, i.ask), h("div", { class: "muted src" }, `for: ${text[i.claim_id] || i.claim_id}`)))),
+    h("details", {}, h("summary", { class: "muted src", style: "cursor:pointer;margin-bottom:8px" }, "Message to send"),
+      h("p", { class: "ask" }, req.message), copy),
+    form);
+}
+
+function historyCard(report) {
+  const rounds = (report.rounds || []).filter(r => r.round > 0);
+  if (!rounds.length) return null;
+  return h("div", { class: "card pad" }, h("h2", {}, "Evidence rounds"),
+    h("ul", { class: "history" }, rounds.map(r => h("li", {},
+      h("strong", {}, `Round ${r.round}: ${sourceById(r.source).label}`),
+      r.note ? h("div", { class: "muted src" }, `Claimant's note: "${r.note}"`) : null,
+      r.changes.length
+        ? r.changes.map(c => h("div", {}, h("span", { class: `tag v-${c.before}` }, VERDICT[c.before]), h("span", { class: "arrow" }, "→"),
+            h("span", { class: `tag v-${c.after}` }, VERDICT[c.after]), " ", c.claim))
+        : h("div", { class: "muted" }, `Re-judged ${r.rejudged.length} claim(s); none changed.`)))));
+}
+
+// --- cost meter + routing --------------------------------------------------------
+
+const TASK_LABEL = { split: "Split story", see: "Read frames (Cosmos)", judge: "Cross-examine", ask: "Ask for evidence" };
+
+function costCard(cost, routing, live = false, report = null) {
+  if (!cost) return h("p", { class: "muted" }, "No usage recorded.");
+  const priced = cost.priced && cost.total_usd != null;
+  const head = h("div", { class: "meter" },
+    h("b", {}, priced ? usd(cost.total_usd) : `${num(cost.tokens)} tokens`),
+    h("span", { class: "muted" }, priced ? `${num(cost.tokens)} tokens` : (cost.priced ? `price not set for ${cost.unpriced_models.join(", ")}` : "prices not set (add pricing.json)")),
+    cost.saved_tokens ? h("span", { class: "pill on" }, `cache saved ${num(cost.saved_tokens)} tokens${cost.priced && cost.saved_usd ? ` · ${usd(cost.saved_usd)}` : ""}`) : null);
+  const rows = Object.entries(cost.by_task).map(([task, t]) => h("tr", {},
+    h("td", {}, TASK_LABEL[task] || task, h("div", { class: "model" }, (routing?.routes?.[task] ? [routing.routes[task]] : t.models).join(", ") || "–")),
+    h("td", { class: "num" }, `${t.calls}${t.cached_calls ? ` (${t.cached_calls} cached)` : ""}`),
+    h("td", { class: "num" }, num(t.tokens)),
+    h("td", { class: "num" }, t.usd == null ? "–" : usd(t.usd))));
+  return h("div", {},
+    h("h2", {}, live ? "Cost so far" : `Cost for this claim${routing ? ` · ${routing.policy} routing` : ""}`),
+    head,
+    h("table", { class: "cost" }, h("tr", {}, h("th", {}, "Task · model"), h("th", { class: "num" }, "Calls"), h("th", { class: "num" }, "Tokens"), h("th", { class: "num" }, "Cost")), rows),
+    report ? h("p", { class: "muted src", style: "margin:8px 0 0" }, `${report.usage.calls} model calls · ${report.elapsed_s}s for the last round`) : null);
 }
 
 function renderContext(ctx) {
@@ -283,35 +510,7 @@ function renderContext(ctx) {
   return card;
 }
 
-function seek(t) {
-  if (!state.video || t == null) return;
-  state.video.pause();
-  state.video.currentTime = t;
-}
-
-function select(claimId, t, doSeek = true) {
-  const { report } = state.data;
-  const v = report.verdicts.find(x => x.claim_id === claimId);
-  state.selected = claimId;
-  for (const el of document.querySelectorAll(".claim")) el.classList.toggle("sel", el.dataset.claim === claimId);
-  for (const el of document.querySelectorAll(".mark")) el.classList.toggle("sel", el.dataset.claim === claimId);
-  if (doSeek) seek(t ?? v.jump_to);
-
-  const box = $("#evidence");
-  box.className = `card pad evidence v-${v.verdict}`;
-  box.replaceChildren(...[
-    h("div", { class: "head" }, h("span", { class: "tag" }, VERDICT[v.verdict]), h("span", { class: "claimtext" }, v.claim)),
-    h("div", { class: "why" }, v.reasoning || h("span", { class: "muted" }, "No reasoning returned.")),
-    v.needed_evidence ? h("div", { class: "need" }, h("strong", {}, "Would settle it: "), v.needed_evidence) : null,
-    v.evidence_frames.length ? h("div", {}, h("h2", {}, "Evidence frames"), h("div", { class: "frames" },
-      v.evidence_frames.map(f => h("figure", { onclick: () => seek(f.t) },
-        h("img", { src: `/api/claims/${state.id}/frames/${f.file}`, alt: `Frame at ${fmt(f.t)}`, loading: "lazy" }),
-        h("figcaption", {}, fmt(f.t)))))) : null,
-    v.observations.length ? h("div", {}, h("h2", { style: "margin-top:12px" }, "What Cosmos saw"), h("ul", { class: "obs" },
-      v.observations.map(o => h("li", {}, h("span", { class: "when", onclick: () => seek(o.t_start) }, `${fmt(o.t_start)}–${fmt(o.t_end)}`),
-        o.what, o.visibility !== "clear" ? h("span", { class: "muted" }, ` (view: ${o.visibility})`) : null)))) : null,
-  ].filter(Boolean));
-}
+// --- new claim dialog ------------------------------------------------------------
 
 function openDialog() { $("#form-err").textContent = ""; $("#dlg").showModal(); }
 $("#new").addEventListener("click", openDialog);

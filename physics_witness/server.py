@@ -7,7 +7,7 @@ import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 
 from .config import Settings
@@ -49,9 +49,7 @@ def create_app(data_dir: Path = Path("data/claims"), settings: Settings | None =
     def list_claims():
         return store.list()
 
-    @app.post("/api/claims", status_code=202)
-    async def create_claim(video: UploadFile = File(...), story: str = Form(...), title: str = Form(""),
-                           place: str = Form(""), date: str = Form("")):
+    async def _save_upload(video: UploadFile) -> Path:
         suffix = Path(video.filename or "").suffix.lower()
         if suffix not in VIDEO_EXTS:
             raise HTTPException(400, f"unsupported video type {suffix!r}")
@@ -63,12 +61,29 @@ def create_app(data_dir: Path = Path("data/claims"), settings: Settings | None =
                     Path(tmp.name).unlink(missing_ok=True)
                     raise HTTPException(413, "video larger than 200 MB")
                 tmp.write(chunk)
+        return Path(tmp.name)
+
+    @app.post("/api/claims", status_code=202)
+    async def create_claim(video: UploadFile = File(...), story: str = Form(...), title: str = Form(""),
+                           place: str = Form(""), date: str = Form("")):
+        tmp = await _save_upload(video)
         try:
-            run_id = store.create(Path(tmp.name), story, title=title, place=place, date=date, move=True)
+            run_id = store.create(tmp, story, title=title, place=place, date=date, move=True)
         except ValueError as exc:
-            Path(tmp.name).unlink(missing_ok=True)
+            tmp.unlink(missing_ok=True)
             raise HTTPException(400, str(exc)) from None
         return JSONResponse({"id": run_id}, status_code=202)
+
+    @app.post("/api/claims/{run_id}/evidence", status_code=202)
+    async def add_evidence(run_id: str, video: UploadFile = File(...), note: str = Form("")):
+        _get(store.meta, run_id)
+        tmp = await _save_upload(video)
+        try:
+            source = store.add_evidence(run_id, tmp, note, move=True)
+        except ValueError as exc:
+            tmp.unlink(missing_ok=True)
+            raise HTTPException(409, str(exc)) from None
+        return JSONResponse({"id": run_id, "source": source}, status_code=202)
 
     @app.get("/api/claims/{run_id}")
     def get_claim(run_id: str):
@@ -76,8 +91,8 @@ def create_app(data_dir: Path = Path("data/claims"), settings: Settings | None =
         return {"meta": meta, "report": store.report(run_id)}
 
     @app.get("/api/claims/{run_id}/video")
-    def get_video(run_id: str):
-        return FileResponse(_get(store.video_path, run_id))
+    def get_video(run_id: str, source: str = Query("main")):
+        return FileResponse(_get(store.video_path, run_id, source))
 
     @app.get("/api/claims/{run_id}/frames/{name}")
     def get_frame(run_id: str, name: str):

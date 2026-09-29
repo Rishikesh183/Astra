@@ -27,6 +27,7 @@ class Frame:
     t: float            # seconds from start of clip
     image: Image.Image  # RGB, timestamp already burned in
     motion: float = 0.0
+    prefix: str = ""    # "" for the original video, "e1_" etc. for extra evidence
 
     def to_b64_jpeg(self, quality: int = 85) -> str:
         buf = io.BytesIO()
@@ -38,7 +39,7 @@ class Frame:
 
     @property
     def filename(self) -> str:
-        return f"frame_{self.t:07.2f}s.jpg"
+        return f"{self.prefix}frame_{self.t:07.2f}s.jpg"
 
 
 def video_duration(path: Path) -> float:
@@ -121,14 +122,16 @@ def burn_timestamp(image: Image.Image, t: float) -> Image.Image:
     return out
 
 
-def sample_frames(video: Path, max_frames: int = 16, fps: float = 4.0, width: int = 768) -> list[Frame]:
+def sample_frames(video: Path, max_frames: int = 16, fps: float = 4.0, width: int = 768,
+                  prefix: str = "") -> list[Frame]:
     candidates = extract_candidates(video, fps=fps, width=width)
     if not candidates:
         raise ValueError(f"No frames decoded from {video}")
     scores = motion_scores([im for _, im in candidates])
     keep = select_indices(scores, max_frames=max_frames)
     return [
-        Frame(index=i, t=candidates[i][0], image=burn_timestamp(candidates[i][1], candidates[i][0]), motion=scores[i])
+        Frame(index=i, t=candidates[i][0], image=burn_timestamp(candidates[i][1], candidates[i][0]), motion=scores[i],
+              prefix=prefix)
         for i in keep
     ]
 

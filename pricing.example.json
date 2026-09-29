@@ -1,0 +1,7 @@
+{
+  "_note": "USD per 1M tokens. Copy to pricing.json and fill in from https://tokenfactory.nebius.com/organization/prices. Keys match model IDs case-insensitively by substring; the longest match wins. null = not priced yet.",
+  "cosmos": {"input": null, "output": null},
+  "nemotron-3-ultra": {"input": null, "output": null},
+  "nemotron-3-super": {"input": null, "output": null},
+  "nemotron-3-nano": {"input": null, "output": null}
+}
