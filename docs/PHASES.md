@@ -23,10 +23,13 @@ Plan dated 2026-09-29. Hard deadline Oct 30, 2026, 10:00am PDT; target submissio
 - [ ] **Needs keys:** core pipeline on 3 real clips
 
 ## Phase 2: Verdicts, Tavily, UI (Oct 8 - 14)
-- Evidence frames per verdict, click-to-jump
-- Tavily weather/place lookup from claim date and place -> Ultra context
-- One-screen UI: video + timeline left, story sentences right, tagged verdicts
-- Frame extraction inside a Token Factory Sandbox (Serverless Job fallback)
+- [x] Evidence per verdict: nearest sampled frames + the Cosmos observations covering each evidence time, `jump_to`
+- [x] Tavily weather (place + date) and place facts -> Ultra context (URLs stripped from the prompt, kept in the report)
+- [x] Run store: one directory per claim, background thread pool, status (queued/running/done/error), errors logged
+- [x] Web app (`physics-witness serve`): upload a claim; video + timeline (sampled-frame ticks, verdict-coloured evidence markers, playhead) on the left; claims grouped by story sentence with Supported / Contradicted / Can't tell on the right; click to jump; evidence frames and "What Cosmos saw"; weather/place card with sources; offline banner; light/dark; phone layout
+- [x] `physics-witness add` to pre-load claims (for the hosted demo on cached runs)
+- [ ] **Deferred:** frame extraction inside a Token Factory Sandbox. This needs the Sandbox API docs; frame extraction runs in-process until then (Serverless Job is the fallback)
+- [ ] **Needs keys:** check the UI with real Cosmos/Ultra/Tavily output on 3 clips
 
 ## Phase 3: Act loop, routing, cost meter (Oct 15 - 20)
 - Can't tell -> agent requests one specific extra piece of evidence -> re-judge

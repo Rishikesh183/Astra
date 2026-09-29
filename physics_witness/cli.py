@@ -1,4 +1,4 @@
-"""Command line: `physics-witness checks|frames|run`."""
+"""Command line: `physics-witness checks|frames|run|add|serve`."""
 
 from __future__ import annotations
 
@@ -34,7 +34,8 @@ def _cmd_frames(args) -> int:
 def _cmd_run(args) -> int:
     from .pipeline import run
     story = Path(args.story).read_text() if Path(args.story).is_file() else args.story
-    report = run(args.video, story, max_frames=args.max_frames, fps=args.fps, out_dir=args.out)
+    report = run(args.video, story, max_frames=args.max_frames, fps=args.fps, out_dir=args.out,
+                 place=args.place, date=args.date)
     if args.json:
         print(json.dumps(report, indent=2, ensure_ascii=False))
         return 0
@@ -48,6 +49,27 @@ def _cmd_run(args) -> int:
     print(f"\nsummary: {report['summary']}  usage: {report['usage']}")
     if args.out:
         print(f"report written to {Path(args.out) / 'report.json'}")
+    return 0
+
+
+def _cmd_add(args) -> int:
+    from .store import RunStore
+    story = Path(args.story).read_text() if Path(args.story).is_file() else args.story
+    store = RunStore(args.data)
+    try:
+        run_id = store.create(args.video, story, title=args.title, place=args.place or "", date=args.date or "", wait=True)
+    finally:
+        store.shutdown()
+    meta = store.meta(run_id)
+    print(f"{run_id}  status={meta['status']}  summary={meta.get('summary')}  {meta.get('error') or ''}".rstrip())
+    return 0 if meta["status"] == "done" else 1
+
+
+def _cmd_serve(args) -> int:
+    import uvicorn
+
+    from .server import create_app
+    uvicorn.run(create_app(args.data), host=args.host, port=args.port)
     return 0
 
 
@@ -74,8 +96,25 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--out", type=Path, help="directory for report.json and frames")
     r.add_argument("--max-frames", type=int, default=16)
     r.add_argument("--fps", type=float, default=4.0)
+    r.add_argument("--place", help="where it happened, for the Tavily weather/place lookup")
+    r.add_argument("--date", help="when it happened (YYYY-MM-DD)")
     r.add_argument("--json", action="store_true", help="print the full report as JSON")
     r.set_defaults(fn=_cmd_run)
+
+    a = sub.add_parser("add", help="run a claim and save it where the web app shows it")
+    a.add_argument("video", type=Path)
+    a.add_argument("story", help="story text, or a path to a .txt file")
+    a.add_argument("--title", default="")
+    a.add_argument("--place")
+    a.add_argument("--date")
+    a.add_argument("--data", type=Path, default=Path("data/claims"))
+    a.set_defaults(fn=_cmd_add)
+
+    w = sub.add_parser("serve", help="start the web app")
+    w.add_argument("--data", type=Path, default=Path("data/claims"))
+    w.add_argument("--host", default="127.0.0.1")
+    w.add_argument("--port", type=int, default=8000)
+    w.set_defaults(fn=_cmd_serve)
 
     args = p.parse_args(argv)
     return args.fn(args)

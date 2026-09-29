@@ -9,5 +9,6 @@ RUN pip install --no-cache-dir .
 # ffmpeg ships inside the imageio-ffmpeg wheel, so no apt packages are needed.
 ENV PW_CACHE_DIR=/data/cache
 VOLUME ["/data"]
+EXPOSE 8000
 ENTRYPOINT ["physics-witness"]
-CMD ["--help"]
+CMD ["serve", "--host", "0.0.0.0", "--port", "8000", "--data", "/data/claims"]

@@ -36,6 +36,10 @@ class Frame:
     def label(self) -> str:
         return f"t={self.t:.2f}s"
 
+    @property
+    def filename(self) -> str:
+        return f"frame_{self.t:07.2f}s.jpg"
+
 
 def video_duration(path: Path) -> float:
     _, secs = imageio_ffmpeg.count_frames_and_secs(str(path))
@@ -149,7 +153,7 @@ def save_frames(frames: list[Frame], out_dir: Path) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     paths = []
     for f in frames:
-        p = out_dir / f"frame_{f.t:07.2f}s.jpg"
+        p = out_dir / f.filename
         f.image.save(p, quality=90)
         paths.append(p)
     return paths

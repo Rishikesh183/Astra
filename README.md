@@ -10,12 +10,12 @@ The output is evidence for a human adjuster, **never a fraud verdict**. Every cl
 
 Built for the Nebius x NVIDIA Global AI Hackathon (deadline Oct 30, 2026).
 
-## Status: Phase 1 (core pipeline)
+## Status: Phase 2 (verdicts, Tavily, UI)
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | Kill-switch checks, frame sampling with burned timestamps, Token Factory + Tavily clients, response cache, core pipeline (claims -> Cosmos events -> Ultra verdicts), CLI, smoke tests | **this branch** |
-| 2 | Evidence frames per verdict, Tavily weather/place context, one-screen UI | planned |
+| 1 | Kill-switch checks, frame sampling with burned timestamps, Token Factory + Tavily clients, response cache, core pipeline (claims -> Cosmos events -> Ultra verdicts), CLI, smoke tests | done |
+| 2 | Evidence frames and Cosmos observations per verdict, Tavily weather/place context, one-screen web UI | **this branch** |
 | 3 | Act loop (Can't tell -> ask for evidence -> re-judge), model routing, cost meter | planned |
 | 4 | Liar Test: 30-40 clips x (true story, altered story), catch rate and false-alarm rate | planned |
 | 5 | Hosted demo on Nebius Serverless, submission | planned |
@@ -35,7 +35,10 @@ written story ──> Nemotron Nano/Super ──> atomic claims ─────�
 2. **Windows**: the Nebius Cosmos endpoint takes 4-8 images per request, so frames are sent in overlapping windows of 6.
 3. **Cosmos** (`events.py`) reports events with start and end times, actors, lighting, weather and visibility. It reports ordinal facts only, with no numeric speeds.
 4. **Nano/Super** (`claims.py`) split the story into atomic, checkable claims.
-5. **Ultra** (`crossexam.py`) merges the window observations and gives each claim a verdict, the evidence timestamps, its reasoning, and (for Can't tell) the one extra piece of evidence that would settle it.
+5. **Tavily** (`context.py`): when the claim has a place (and a date), it looks up the weather that day and what the place is like. Ultra gets the answers and snippets and is told they count for less than the footage. The report keeps the source links.
+6. **Ultra** (`crossexam.py`) merges the window observations and gives each claim a verdict, the evidence timestamps, its reasoning, and (for Can't tell) the one extra piece of evidence that would settle it.
+
+7. **Evidence** (`evidence.py`): each verdict is linked to the nearest sampled frames and the Cosmos observations covering its evidence times, so the UI can jump to them.
 
 Every model response is cached on disk (`.cache/responses`), so re-runs and recorded demos cost nothing.
 
@@ -48,15 +51,22 @@ python scripts/make_sample_clip.py samples/synthetic.mp4
 
 physics-witness checks --clip samples/synthetic.mp4     # the five Day 1-2 kill-switch checks
 physics-witness frames samples/synthetic.mp4 --out out/frames
-physics-witness run samples/synthetic.mp4 "I was stopped at the light. The other car hit my rear bumper." --out out/run
+physics-witness run samples/synthetic.mp4 "I was stopped at the light. The other car hit my rear bumper." \
+    --place "MG Road, Bengaluru" --date 2026-08-02 --out out/run
+
+# Web app: video + timeline on the left, the story's claims and verdicts on the right
+physics-witness add samples/synthetic.mp4 "The truck reversed into my door." --title "Sample"   # optional: pre-load a claim
+physics-witness serve            # http://127.0.0.1:8000
 ```
+
+In the web app you can upload a clip with a story (plus optional place and date). Claim runs happen in the background. Clicking a claim, a timeline marker or an evidence frame jumps the video to that moment. Claims are stored under `data/claims/<id>/` (video, story, `report.json`, evidence frames).
 
 With no API key (or `PW_OFFLINE=1`) everything runs with deterministic stub replies: the video is really sampled, but every verdict is Can't tell.
 
 Docker (one command):
 
 ```bash
-docker build -t physics-witness . && docker run --rm --env-file .env -v "$PWD:/data" -w /data physics-witness run samples/synthetic.mp4 story.txt
+docker build -t physics-witness . && docker run --rm -p 8000:8000 --env-file .env -v "$PWD/data:/data" physics-witness
 ```
 
 Tests (no network or keys needed; the live code path is exercised through a mock HTTP transport):
@@ -83,7 +93,7 @@ pytest
 - **NVIDIA Nemotron Nano / Super (on Token Factory)**: splits the story into atomic claims. In Phase 3 it also filters frames.
 - **Nebius Token Factory**: all model calls go through its OpenAI-compatible API. 402/403 responses are reported as credit or access problems.
 - **Nebius Sandboxes / Serverless Jobs / Serverless Endpoints**: planned for frame extraction, Liar Test batches and hosting (phases 2-5).
-- **Tavily**: weather and place facts (the client and a live check exist now; pipeline integration comes in Phase 2).
+- **Tavily**: weather on the claim date and facts about the place, passed to Ultra as outside context (at runtime, whenever a claim has a place).
 
 ## What it does not claim
 
