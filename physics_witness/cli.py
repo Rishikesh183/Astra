@@ -1,4 +1,4 @@
-"""Command line: `physics-witness checks|frames|run|add|evidence|serve`."""
+"""Command line: `physics-witness checks|frames|run|add|evidence|liar|serve`."""
 
 from __future__ import annotations
 
@@ -84,6 +84,110 @@ def _cmd_evidence(args) -> int:
     return 0 if not meta.get("error") else 1
 
 
+def _liar_cases(args):
+    from .liar.cases import load_cases
+    if not Path(args.cases).is_file():
+        raise SystemExit(f"{args.cases} not found. Start from the template: cp liartest/cases.example.csv {args.cases}")
+    cases = load_cases(args.cases)
+    if getattr(args, "only", None):
+        wanted = set(args.only.split(","))
+        cases = [c for c in cases if c.id in wanted]
+    if getattr(args, "limit", None):
+        cases = cases[: args.limit]
+    return cases
+
+
+def _cmd_liar_check(args) -> int:
+    from .liar.cases import validate
+    cases = _liar_cases(args)
+    errors, warnings = validate(cases, args.clips)
+    for w in warnings:
+        print(f"warning  {w}")
+    for e in errors:
+        print(f"ERROR    {e}")
+    pairs = sum(1 for c in cases if c.altered_story)
+    print(f"\n{len(cases)} clips, {pairs} with an altered story, {len(errors)} errors, {len(warnings)} warnings")
+    if len(cases) < 30:
+        print(f"note: the plan targets 30-40 clips; {len(cases)} so far")
+    return 1 if errors else 0
+
+
+def _cmd_liar_alter(args) -> int:
+    import shutil
+
+    from . import models
+    from .clients.token_factory import TokenFactoryClient
+    from .liar.alter import alter
+    from .liar.cases import save_cases
+    cases = _liar_cases(args)
+    client = TokenFactoryClient(Settings.from_env())
+    names = models.resolve(client)
+    model = names.get("super") or names.get("ultra") or names.get("splitter") or ""
+    changed = 0
+    for c in cases:
+        if c.altered_story and not args.overwrite:
+            continue
+        if not c.alteration:
+            print(f"[{c.id}] skipped: set the alteration column first")
+            continue
+        got = alter(c.true_story, c.alteration, client, model)
+        if not got:
+            print(f"[{c.id}] no {c.alteration} change found; write this one by hand")
+            continue
+        c.altered_story, c.altered_sentence, method = got
+        changed += 1
+        print(f"[{c.id}] {c.alteration} ({method}): {c.altered_sentence}")
+    if changed and not args.dry_run:
+        shutil.copyfile(args.cases, f"{args.cases}.bak")
+        save_cases(cases, args.cases)
+        print(f"\n{changed} drafts written to {args.cases} (backup: {args.cases}.bak). Read every one before running.")
+    elif changed:
+        print(f"\n{changed} drafts (dry run, nothing written)")
+    return 0
+
+
+def _cmd_liar_run(args) -> int:
+    from .liar.cases import validate
+    from .liar.runner import run_all
+    cases = _liar_cases(args)
+    errors, _ = validate(cases, args.clips)
+    if errors:
+        for e in errors:
+            print(f"ERROR    {e}")
+        print("fix these first (see `physics-witness liar check`)")
+        return 1
+    settings = Settings.from_env()
+    if settings.offline or not settings.nebius_api_key:
+        print("warning: no NEBIUS_API_KEY (or PW_OFFLINE=1): runs will be offline stubs, not a real measurement\n")
+
+    def show(row):
+        extra = f" caught={row['caught']}" if row["kind"] == "altered" else f" flagged={row['flagged']}"
+        print(f"  {row['id']:<16} {row['kind']:<8} S{row['supported']} C{row['contradicted']} ?{row['cant_tell']}"
+              f"{extra}{'  ERROR ' + row['error'] if row['error'] else ''}")
+
+    result = run_all(cases, args.clips, args.out, workers=args.workers, force=args.force, settings=settings,
+                     on_row=show, max_frames=args.max_frames)
+    m = result["metrics"]
+    fmt = lambda r: "–" if r["rate"] is None else f"{r['rate'] * 100:.0f}% ({r['k']}/{r['n']}, 95% CI {r['ci95'][0] * 100:.0f}-{r['ci95'][1] * 100:.0f}%)"
+    print(f"\ncatch rate    {fmt(m['catch_rate'])}")
+    print(f"false alarms  {fmt(m['false_alarm_rate'])}")
+    print(f"abstained     {fmt(m['abstain_rate'])}")
+    print(f"per claim     {'$%.4f' % m['usd_per_claim'] if m['usd_per_claim'] is not None else str(m['tokens_per_claim']) + ' tokens'}")
+    print(f"\nreport: {args.out / 'report.html'}")
+    return 1 if m["errors"] else 0
+
+
+def _cmd_liar_report(args) -> int:
+    import json
+
+    from .liar.runner import metrics, write_outputs
+    result = json.loads((args.out / "results.json").read_text())
+    result["metrics"] = metrics(result["rows"])
+    write_outputs(result, args.out)
+    print(args.out / "report.html")
+    return 0
+
+
 def _cmd_serve(args) -> int:
     import uvicorn
 
@@ -135,6 +239,39 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("--note", default="", help="what the claimant says the clip shows")
     e.add_argument("--data", type=Path, default=Path("data/claims"))
     e.set_defaults(fn=_cmd_evidence)
+
+    liar = sub.add_parser("liar", help="the Liar Test: true vs altered stories on the same clips")
+    lsub = liar.add_subparsers(dest="liar_cmd", required=True)
+
+    def liar_common(sp, out=False):
+        sp.add_argument("--cases", type=Path, default=Path("liartest/cases.csv"))
+        sp.add_argument("--clips", type=Path, default=Path("liartest/clips"))
+        if out:
+            sp.add_argument("--out", type=Path, default=Path("liartest/results"))
+
+    lc = lsub.add_parser("check", help="validate the case file and clips")
+    liar_common(lc)
+    lc.add_argument("--only", help="comma-separated case ids")
+    lc.set_defaults(fn=_cmd_liar_check)
+
+    la = lsub.add_parser("alter", help="draft altered stories for rows that have none")
+    liar_common(la)
+    la.add_argument("--overwrite", action="store_true", help="redo rows that already have an altered story")
+    la.add_argument("--dry-run", action="store_true")
+    la.set_defaults(fn=_cmd_liar_alter)
+
+    lr = lsub.add_parser("run", help="run every clip with both stories and score them")
+    liar_common(lr, out=True)
+    lr.add_argument("--workers", type=int, default=2)
+    lr.add_argument("--force", action="store_true", help="re-run pairs that already have a report")
+    lr.add_argument("--only", help="comma-separated case ids")
+    lr.add_argument("--limit", type=int, help="first N cases only")
+    lr.add_argument("--max-frames", type=int, default=16)
+    lr.set_defaults(fn=_cmd_liar_run)
+
+    lp = lsub.add_parser("report", help="rebuild metrics and report.html from results.json")
+    lp.add_argument("--out", type=Path, default=Path("liartest/results"))
+    lp.set_defaults(fn=_cmd_liar_report)
 
     w = sub.add_parser("serve", help="start the web app")
     w.add_argument("--data", type=Path, default=Path("data/claims"))

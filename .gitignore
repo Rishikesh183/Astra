@@ -8,3 +8,7 @@ __pycache__/
 out/
 samples/*.mp4
 data/
+liartest/clips/*
+!liartest/clips/.gitkeep
+liartest/results/
+liartest/*.bak
