@@ -17,13 +17,15 @@ def discover(models: list[str]) -> dict[str, str]:
     return {
         "cosmos": _find(models, "cosmos", any_of=("reason",)) or _find(models, "cosmos"),
         "ultra": _find(models, "nemotron", "ultra"),
-        "splitter": _find(models, "nemotron", any_of=("nano", "super")),
+        "splitter": _find(models, "nemotron", "nano") or _find(models, "nemotron", "super"),
+        "super": _find(models, "nemotron", "super"),
     }
 
 
 def resolve(client: TokenFactoryClient) -> dict[str, str]:
     s = client.settings
-    chosen = {"cosmos": s.cosmos_model, "ultra": s.ultra_model, "splitter": s.splitter_model}
+    chosen = {"cosmos": s.cosmos_model, "ultra": s.ultra_model, "splitter": s.splitter_model,
+              "super": s.super_model}
     if client.offline or all(chosen.values()):
         return chosen
     found = discover(client.list_models())

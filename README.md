@@ -10,13 +10,13 @@ The output is evidence for a human adjuster, **never a fraud verdict**. Every cl
 
 Built for the Nebius x NVIDIA Global AI Hackathon (deadline Oct 30, 2026).
 
-## Status: Phase 2 (verdicts, Tavily, UI)
+## Status: Phase 3 (act loop, routing, cost meter)
 
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Kill-switch checks, frame sampling with burned timestamps, Token Factory + Tavily clients, response cache, core pipeline (claims -> Cosmos events -> Ultra verdicts), CLI, smoke tests | done |
-| 2 | Evidence frames and Cosmos observations per verdict, Tavily weather/place context, one-screen web UI | **this branch** |
-| 3 | Act loop (Can't tell -> ask for evidence -> re-judge), model routing, cost meter | planned |
+| 2 | Evidence frames and Cosmos observations per verdict, Tavily weather/place context, one-screen web UI | done |
+| 3 | Act loop (Can't tell -> ask for evidence -> re-judge), model routing, live cost meter | **this branch** |
 | 4 | Liar Test: 30-40 clips x (true story, altered story), catch rate and false-alarm rate | planned |
 | 5 | Hosted demo on Nebius Serverless, submission | planned |
 
@@ -40,6 +40,21 @@ written story ──> Nemotron Nano/Super ──> atomic claims ─────�
 
 7. **Evidence** (`evidence.py`): each verdict is linked to the nearest sampled frames and the Cosmos observations covering its evidence times, so the UI can jump to them.
 
+8. **Act** (`act.py`, `pipeline.rejudge`): for each Can't tell claim, the agent writes the claimant one specific request (for example "footage from 10 seconds later" or "the rear camera angle"). When the claimant sends the clip, it is added as a new source (`e1`, `e2`, ...). Cosmos reads it, and Ultra re-judges **only** the Can't tell claims using every source. Settled verdicts are left alone, and each round records which verdicts changed.
+
+### Model routing and cost meter
+
+| Task | Model (quality policy) | Budget policy |
+|---|---|---|
+| Split story into claims | Nemotron Nano (else Super) | same |
+| Read frames | Cosmos (the only vision model) | same |
+| Cross-examine | Nemotron Ultra | Nemotron Super |
+| Ask for evidence | Nemotron Nano (else Super) | same |
+
+Set the policy with `PW_POLICY=quality|budget`. Before Cosmos, a cheap pixel filter (`routing.drop_near_duplicates`) skips frames that barely differ from the last frame kept, so Cosmos only reads frames where something changed. The text models can't see images, so this filter is pixel-based rather than done by Nano.
+
+Every call is logged by task and model. The UI shows a live cost meter while a claim runs, and the total cost for the claim (all rounds) when it's done. Tokens served from the cache count as saved. Prices are **not** hard-coded: copy `pricing.example.json` to `pricing.json` and fill in USD per 1M tokens from the [Token Factory price page](https://tokenfactory.nebius.com/organization/prices). Without it, the meter shows exact token counts and "price not set".
+
 Every model response is cached on disk (`.cache/responses`), so re-runs and recorded demos cost nothing.
 
 ## Quick start
@@ -56,10 +71,11 @@ physics-witness run samples/synthetic.mp4 "I was stopped at the light. The other
 
 # Web app: video + timeline on the left, the story's claims and verdicts on the right
 physics-witness add samples/synthetic.mp4 "The truck reversed into my door." --title "Sample"   # optional: pre-load a claim
+physics-witness evidence <claim-id> rear.mp4 --note "rear dashcam"   # act loop from the CLI
 physics-witness serve            # http://127.0.0.1:8000
 ```
 
-In the web app you can upload a clip with a story (plus optional place and date). Claim runs happen in the background. Clicking a claim, a timeline marker or an evidence frame jumps the video to that moment. Claims are stored under `data/claims/<id>/` (video, story, `report.json`, evidence frames).
+In the web app you can upload a clip with a story (plus optional place and date). Claim runs happen in the background. Clicking a claim, a timeline marker or an evidence frame jumps the video to that moment, switching to the extra clip if that's where the evidence is. When some claims are Can't tell, the "Ask the claimant" card shows the request, and you can upload the clip the claimant sends to re-judge. Claims are stored under `data/claims/<id>/` (video, story, `report.json`, evidence frames).
 
 With no API key (or `PW_OFFLINE=1`) everything runs with deterministic stub replies: the video is really sampled, but every verdict is Can't tell.
 
@@ -83,6 +99,8 @@ pytest
 | `NEBIUS_BASE_URL` | Token Factory OpenAI-compatible base URL (default `https://api.tokenfactory.nebius.com/v1`) |
 | `PW_COSMOS_MODEL`, `PW_ULTRA_MODEL`, `PW_SPLITTER_MODEL` | Model IDs. Leave empty to auto-discover from `/models` |
 | `TAVILY_API_KEY` | Tavily search |
+| `PW_POLICY` | `quality` (Ultra judges) or `budget` (Super judges) |
+| `PW_PRICES_FILE` | Prices for the cost meter (default `pricing.json`) |
 | `PW_OFFLINE` | `1` = never call the network |
 | `PW_CACHE_DIR` | Response cache directory |
 
@@ -90,7 +108,7 @@ pytest
 
 - **NVIDIA Cosmos reasoner (on Nebius Token Factory)**: reads windows of timestamped frames and reports physical events.
 - **NVIDIA Nemotron Ultra (on Token Factory)**: cross-examines each claim against the merged observations.
-- **NVIDIA Nemotron Nano / Super (on Token Factory)**: splits the story into atomic claims. In Phase 3 it also filters frames.
+- **NVIDIA Nemotron Nano / Super (on Token Factory)**: splits the story into claims and writes the evidence request to the claimant. Under the budget policy, Super also does the cross-examination.
 - **Nebius Token Factory**: all model calls go through its OpenAI-compatible API. 402/403 responses are reported as credit or access problems.
 - **Nebius Sandboxes / Serverless Jobs / Serverless Endpoints**: planned for frame extraction, Liar Test batches and hosting (phases 2-5).
 - **Tavily**: weather on the claim date and facts about the place, passed to Ultra as outside context (at runtime, whenever a claim has a place).

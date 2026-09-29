@@ -1,4 +1,4 @@
-"""Command line: `physics-witness checks|frames|run|add|serve`."""
+"""Command line: `physics-witness checks|frames|run|add|evidence|serve`."""
 
 from __future__ import annotations
 
@@ -46,7 +46,11 @@ def _cmd_run(args) -> int:
         print(f"{marks[v['verdict']]}  {v['claim']}\n              at: {times}\n              why: {v['reasoning']}")
         if v["needed_evidence"]:
             print(f"              need: {v['needed_evidence']}")
-    print(f"\nsummary: {report['summary']}  usage: {report['usage']}")
+    if report.get("request"):
+        print(f"\nevidence request to the claimant:\n{report['request']['message']}")
+    cost = report["cost"]
+    usd = f"${cost['total_usd']:.4f}" if cost["total_usd"] is not None and cost["priced"] else "price not set"
+    print(f"\nsummary: {report['summary']}  tokens: {cost['tokens']} ({cost['saved_tokens']} saved by cache)  cost: {usd}")
     if args.out:
         print(f"report written to {Path(args.out) / 'report.json'}")
     return 0
@@ -63,6 +67,21 @@ def _cmd_add(args) -> int:
     meta = store.meta(run_id)
     print(f"{run_id}  status={meta['status']}  summary={meta.get('summary')}  {meta.get('error') or ''}".rstrip())
     return 0 if meta["status"] == "done" else 1
+
+
+def _cmd_evidence(args) -> int:
+    from .store import RunStore
+    store = RunStore(args.data)
+    try:
+        sid = store.add_evidence(args.claim, args.video, args.note, wait=True)
+    finally:
+        store.shutdown()
+    meta = store.meta(args.claim)
+    report = store.report(args.claim)
+    for c in report["rounds"][-1]["changes"]:
+        print(f"{c['claim_id']}: {c['before']} -> {c['after']}  {c['claim']}")
+    print(f"{args.claim} +{sid}  summary={meta.get('summary')}  {meta.get('error') or ''}".rstrip())
+    return 0 if not meta.get("error") else 1
 
 
 def _cmd_serve(args) -> int:
@@ -109,6 +128,13 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--date")
     a.add_argument("--data", type=Path, default=Path("data/claims"))
     a.set_defaults(fn=_cmd_add)
+
+    e = sub.add_parser("evidence", help="attach extra footage to a saved claim and re-judge Can't tell claims")
+    e.add_argument("claim", help="claim id (see data/claims/)")
+    e.add_argument("video", type=Path)
+    e.add_argument("--note", default="", help="what the claimant says the clip shows")
+    e.add_argument("--data", type=Path, default=Path("data/claims"))
+    e.set_defaults(fn=_cmd_evidence)
 
     w = sub.add_parser("serve", help="start the web app")
     w.add_argument("--data", type=Path, default=Path("data/claims"))

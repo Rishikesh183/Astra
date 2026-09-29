@@ -78,7 +78,7 @@ def test_parse_verdicts_normalises_and_abstains_on_missing():
         {"claim_id": "c2", "verdict": "cannot tell", "needed_evidence": "rear camera"},
         {"claim_id": "c3", "verdict": "banana"},
     ]})
-    v = {x.claim_id: x for x in parse_verdicts(text, claims, duration=10.0)}
+    v = {x.claim_id: x for x in parse_verdicts(text, claims, 10.0)}
     assert v["c1"].verdict == "supported" and v["c1"].evidence_times == [1.0, 2.5]
     assert v["c2"].verdict == "cant_tell" and v["c2"].needed_evidence == "rear camera"
     assert v["c3"].verdict == "cant_tell"
@@ -90,7 +90,8 @@ def test_model_discovery():
     listing = ["meta-llama/Llama-3.3-70B", "nvidia/Cosmos-Reason3-Reasoner", "nvidia/Nemotron-3-Ultra",
                "nvidia/Nemotron-3-Nano-30B"]
     assert discover(listing) == {"cosmos": "nvidia/Cosmos-Reason3-Reasoner",
-                                 "ultra": "nvidia/Nemotron-3-Ultra", "splitter": "nvidia/Nemotron-3-Nano-30B"}
+                                 "ultra": "nvidia/Nemotron-3-Ultra", "splitter": "nvidia/Nemotron-3-Nano-30B",
+                                 "super": ""}
 
 
 # --- pipeline ---------------------------------------------------------------
@@ -155,7 +156,7 @@ def test_live_pipeline_with_mock_api_and_cache(clip, tmp_path):
 
     assert report["mode"] == "live"
     assert report["models"] == {"cosmos": "nvidia/Cosmos3-Reasoner", "ultra": "nvidia/Nemotron-3-Ultra",
-                                "splitter": "nvidia/Nemotron-3-Super-120B"}
+                                "splitter": "nvidia/Nemotron-3-Super-120B", "super": "nvidia/Nemotron-3-Super-120B"}
     assert report["summary"] == {"supported": 2, "contradicted": 1, "cant_tell": 1}
     cosmos_calls = [r for r in fake.requests if "Cosmos" in r["model"]]
     assert len(cosmos_calls) == 2           # 8 frames -> windows of 6 overlapping by 1

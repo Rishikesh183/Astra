@@ -55,6 +55,7 @@ def split_claims(client: TokenFactoryClient, model: str, story: str) -> list[Cla
     result = client.chat(
         model,
         [{"role": "user", "content": SPLIT_PROMPT.format(kinds=", ".join(KINDS), story=story)}],
+        task="split",
         offline_reply=stub,
         temperature=0.0,
         max_tokens=2048,

@@ -32,8 +32,15 @@ Plan dated 2026-09-29. Hard deadline Oct 30, 2026, 10:00am PDT; target submissio
 - [ ] **Needs keys:** check the UI with real Cosmos/Ultra/Tavily output on 3 clips
 
 ## Phase 3: Act loop, routing, cost meter (Oct 15 - 20)
-- Can't tell -> agent requests one specific extra piece of evidence -> re-judge
-- Nano/Super filter frames before Cosmos; cost per claim shown live (from `UsageLedger`)
+- [x] Evidence request: for each Can't tell claim, one specific ask plus a message to the claimant (Nano/Super, with a template fallback)
+- [x] Re-judge: extra clip becomes source `e1`, `e2`, ...; Cosmos reads it; Ultra re-judges only Can't tell claims across all sources; settled verdicts are kept; each round records its verdict changes
+- [x] Ultra cites evidence as `{source, t}`; evidence frames and observations are labelled by source
+- [x] Routing table (quality / budget policy) with fallbacks; pixel filter skips near-duplicate frames before Cosmos
+- [x] Cost meter: tokens per task and model, cache savings, USD from `pricing.json` (not hard-coded), totals across rounds
+- [x] Live progress: stage list + cost so far while a claim runs or is re-judged
+- [x] UI: source tabs, "Ask the claimant" card with upload, evidence rounds history, cost and routing card
+- [x] CLI: `physics-witness evidence <claim> <clip> --note ...`
+- [ ] **Needs keys:** real Token Factory prices in `pricing.json`; check the re-judge on a real two-angle clip
 
 ## Phase 4: Liar Test (Oct 21 - 24)
 - 30-40 clips, each with a true story and an altered one (direction, order, time of day)
