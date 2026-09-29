@@ -1,0 +1,7 @@
+.git
+.cache
+out
+samples
+**/__pycache__
+*.egg-info
+.env
