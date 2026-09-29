@@ -1,0 +1,4 @@
+id,clip,true_story,altered_story,alteration,altered_sentence,place,date,license,source_url,notes
+dash-001,dash-001.mp4,"I was waiting at the red light. The car behind me rolled forward and hit my rear bumper. It was a dry, sunny afternoon.","I was waiting at the red light. The car behind me rolled forward and hit my front bumper. It was a dry, sunny afternoon.",contact,The car behind me rolled forward and hit my front bumper.,"MG Road, Bengaluru",2026-08-02,self-filmed,,example row: replace with your own
+dash-002,dash-002.mp4,"I was driving north in the left lane. A scooter cut across from the right. I braked and we did not touch.",,direction,,,,CC-BY-4.0,https://example.org/clip-page,"example: altered_story left empty, `liar alter` drafts it"
+dash-003,dash-003.mp4,"The van ahead braked hard. I braked a second later. It was raining.","The van ahead braked hard. I braked a second later. It was dry.",weather,It was dry.,,,self-filmed,,

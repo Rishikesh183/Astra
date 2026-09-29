@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import threading
 from pathlib import Path
 from typing import Any, Callable
 
@@ -31,5 +33,8 @@ class ResponseCache:
             return json.loads(path.read_text()), True
         value = call()
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(value, ensure_ascii=False))
+        # Write-then-rename so parallel runs (Liar Test workers) never read a half-written file.
+        tmp = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
+        tmp.write_text(json.dumps(value, ensure_ascii=False))
+        os.replace(tmp, path)
         return value, False

@@ -10,14 +10,14 @@ The output is evidence for a human adjuster, **never a fraud verdict**. Every cl
 
 Built for the Nebius x NVIDIA Global AI Hackathon (deadline Oct 30, 2026).
 
-## Status: Phase 3 (act loop, routing, cost meter)
+## Status: Phase 4 (Liar Test tooling)
 
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Kill-switch checks, frame sampling with burned timestamps, Token Factory + Tavily clients, response cache, core pipeline (claims -> Cosmos events -> Ultra verdicts), CLI, smoke tests | done |
 | 2 | Evidence frames and Cosmos observations per verdict, Tavily weather/place context, one-screen web UI | done |
-| 3 | Act loop (Can't tell -> ask for evidence -> re-judge), model routing, live cost meter | **this branch** |
-| 4 | Liar Test: 30-40 clips x (true story, altered story), catch rate and false-alarm rate | planned |
+| 3 | Act loop (Can't tell -> ask for evidence -> re-judge), model routing, live cost meter | done |
+| 4 | Liar Test tooling: case file, validation, altered-story drafts, batch runner, catch / false-alarm / abstain rates with 95% intervals, HTML report | **this branch** (needs real clips + keys for the numbers) |
 | 5 | Hosted demo on Nebius Serverless, submission | planned |
 
 See [docs/PHASES.md](docs/PHASES.md) for details.
@@ -90,6 +90,20 @@ Tests (no network or keys needed; the live code path is exercised through a mock
 ```bash
 pytest
 ```
+
+## Liar Test
+
+Every clip runs twice: once with the claimant's true story and once with one physical detail changed (direction, order, time of day, weather, contact point, presence). The report shows how often the altered sentence is caught, how often true stories are wrongly flagged, and how often the tool abstains, each with a 95% interval.
+
+```bash
+cp liartest/cases.example.csv liartest/cases.csv    # one row per clip
+# videos go in liartest/clips/
+physics-witness liar check        # validate before spending credit
+physics-witness liar alter        # draft altered stories (review every one)
+physics-witness liar run          # -> liartest/results/report.html
+```
+
+Full instructions, including where videos go and how to write good pairs, are in [liartest/README.md](liartest/README.md).
 
 ## Configuration
 

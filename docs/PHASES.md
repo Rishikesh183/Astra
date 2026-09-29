@@ -43,8 +43,15 @@ Plan dated 2026-09-29. Hard deadline Oct 30, 2026, 10:00am PDT; target submissio
 - [ ] **Needs keys:** real Token Factory prices in `pricing.json`; check the re-judge on a real two-angle clip
 
 ## Phase 4: Liar Test (Oct 21 - 24)
-- 30-40 clips, each with a true story and an altered one (direction, order, time of day)
-- Batch as Serverless Jobs; report catch rate, false-alarm rate, abstain rate
+- [x] Case file `liartest/cases.csv` (one row per clip: true story, altered story, alteration type, changed sentence, licence) + example
+- [x] `liar check`: ids, clip files, video types, alteration types, changed sentence present, licence and source URL
+- [x] `liar alter`: drafts one-sentence alterations (Nemotron when keys are set, word-swap rules otherwise; order swaps two actions only); backup + mandatory human review
+- [x] `liar run`: both stories per clip (true first, so the altered run reuses the cached Cosmos readings), parallel workers, resumable, per-run errors kept
+- [x] Scoring: caught = the claim from the changed sentence is Contradicted; false alarm = a true story gets any Contradicted; abstain rate; per-type breakdown; 95% Wilson intervals; tokens/cost per claim
+- [x] Outputs: `results.csv`, `metrics.json`, `results.json`, self-contained `report.html` (the demo video's Liar Test scene)
+- [x] Same command runs in the Docker image, so it can run as a Serverless Job
+- [ ] **Needs clips:** 30-40 openly licensed / self-filmed clips in `liartest/clips/`
+- [ ] **Needs keys:** the real run and the measured numbers
 
 ## Phase 5: Ship (Oct 25 - 28)
 - Hosted demo on a Serverless Endpoint using cached runs; README; 3-minute video; feedback; submit
