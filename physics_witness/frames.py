@@ -10,6 +10,9 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -42,39 +45,106 @@ class Frame:
         return f"{self.prefix}frame_{self.t:07.2f}s.jpg"
 
 
+class Cancelled(Exception):
+    """Raised when a run is cancelled (the cancel event was set)."""
+
+
+def check_cancel(cancel: threading.Event | None) -> None:
+    if cancel is not None and cancel.is_set():
+        raise Cancelled()
+
+
+_DURATION = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
+
+
 def video_duration(path: Path) -> float:
+    """Clip length from the container header (instant). Falls back to a full
+    decode only when the header has no duration."""
+    proc = subprocess.run([ffmpeg_exe(), "-hide_banner", "-i", str(path)], capture_output=True, text=True)
+    m = _DURATION.search(proc.stderr)
+    if m:
+        h, mnt, sec = m.groups()
+        return int(h) * 3600 + int(mnt) * 60 + float(sec)
     _, secs = imageio_ffmpeg.count_frames_and_secs(str(path))
     return float(secs)
 
 
 _PTS = re.compile(r"\bn:\s*(\d+)\b.*?\bpts_time:\s*([-\d.]+)")
 
+MAX_CANDIDATES = 120      # candidate frames scored for motion, whatever the clip length
+SEEK_ABOVE_S = 90.0       # longer clips: jump to each sample time instead of decoding every frame
 
-def extract_candidates(video: Path, fps: float = 4.0, width: int = 768) -> list[tuple[float, Image.Image]]:
-    """Decode real source frames spaced at least 1/`fps` s apart, scaled to `width` px.
 
-    Uses `select` rather than the `fps` filter so each frame keeps its true
-    presentation time (read back from `showinfo`), which is what gets burned in.
-    """
+def _run_cancellable(cmd: list[str], cancel: threading.Event | None, log_path: Path) -> str:
+    """Run ffmpeg, killing it promptly if `cancel` is set. Returns its stderr."""
+    with open(log_path, "w") as log:
+        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=log)
+        try:
+            while proc.poll() is None:
+                if cancel is not None and cancel.is_set():
+                    proc.kill()
+                    proc.wait()
+                    raise Cancelled()
+                time.sleep(0.05)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, cmd, stderr=log_path.read_text()[-2000:])
+    return log_path.read_text()
+
+
+def _decode_all(video: Path, gap: float, width: int, tmp: str, cancel) -> list[tuple[float, Image.Image]]:
+    # `select` rather than the `fps` filter, so each frame keeps its true
+    # presentation time (read back from `showinfo`), which is what gets burned in.
+    vf = f"select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,{gap:.4f})',showinfo,scale={width}:-2"
+    cmd = [ffmpeg_exe(), "-hide_banner", "-i", str(video), "-vf", vf, "-fps_mode", "vfr", "-q:v", "3", f"{tmp}/%06d.jpg"]
+    stderr = _run_cancellable(cmd, cancel, Path(tmp) / "ffmpeg.log")
+    times = {int(n): float(t) for n, t in _PTS.findall(stderr)}
+    start = min(times.values(), default=0.0)
+    frames = []
+    for i, f in enumerate(sorted(Path(tmp).glob("*.jpg"))):
+        with Image.open(f) as im:
+            frames.append((max(0.0, times.get(i, i * gap) - start), im.convert("RGB")))
+    return frames
+
+
+def _seek_each(video: Path, times: list[float], width: int, tmp: str, cancel) -> list[tuple[float, Image.Image]]:
+    """One quick ffmpeg per sample time: seeks to the nearest keyframe and
+    decodes forward to `t`, so a 5-minute clip costs ~MAX_CANDIDATES short decodes."""
+    def grab(i_t):
+        i, t = i_t
+        check_cancel(cancel)
+        out = Path(tmp) / f"{i:06d}.jpg"
+        cmd = [ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-ss", f"{t:.3f}", "-i", str(video),
+               "-frames:v", "1", "-vf", f"scale={width}:-2", "-q:v", "3", "-y", str(out)]
+        _run_cancellable(cmd, cancel, Path(tmp) / f"{i:06d}.log")
+        if not out.is_file():
+            return None
+        with Image.open(out) as im:
+            return t, im.convert("RGB")
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(grab, enumerate(times)))
+    return [r for r in results if r is not None]
+
+
+def extract_candidates(video: Path, fps: float = 4.0, width: int = 768, cancel: threading.Event | None = None,
+                       max_candidates: int = MAX_CANDIDATES) -> list[tuple[float, Image.Image]]:
+    """Candidate frames about 1/`fps` s apart (fewer for long clips, so there are
+    never more than `max_candidates`), scaled to `width` px."""
     video = Path(video)
     if not video.is_file():
         raise FileNotFoundError(video)
-    gap = 1.0 / fps
-    vf = f"select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,{gap:.4f})',showinfo,scale={width}:-2"
+    duration = video_duration(video)
+    eff_fps = min(fps, max_candidates / max(duration, 0.1))
     with tempfile.TemporaryDirectory() as tmp:
-        cmd = [
-            ffmpeg_exe(), "-hide_banner", "-i", str(video), "-vf", vf,
-            "-fps_mode", "vfr", "-q:v", "3", f"{tmp}/%06d.jpg",
-        ]
-        proc = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        times = {int(n): float(t) for n, t in _PTS.findall(proc.stderr)}
-        files = sorted(Path(tmp).glob("*.jpg"))
-        start = min(times.values(), default=0.0)
-        frames = []
-        for i, f in enumerate(files):
-            with Image.open(f) as im:
-                frames.append((max(0.0, times.get(i, i * gap) - start), im.convert("RGB")))
-    return frames
+        if duration > SEEK_ABOVE_S:
+            n = max(2, int(duration * eff_fps))
+            last = max(0.0, duration - 0.5)
+            times = [round(last * i / (n - 1), 3) for i in range(n)]
+            return _seek_each(video, times, width, tmp, cancel)
+        return _decode_all(video, 1.0 / eff_fps, width, tmp, cancel)
 
 
 def motion_scores(images: list[Image.Image]) -> list[float]:
@@ -123,8 +193,8 @@ def burn_timestamp(image: Image.Image, t: float) -> Image.Image:
 
 
 def sample_frames(video: Path, max_frames: int = 16, fps: float = 4.0, width: int = 768,
-                  prefix: str = "") -> list[Frame]:
-    candidates = extract_candidates(video, fps=fps, width=width)
+                  prefix: str = "", cancel: threading.Event | None = None) -> list[Frame]:
+    candidates = extract_candidates(video, fps=fps, width=width, cancel=cancel)
     if not candidates:
         raise ValueError(f"No frames decoded from {video}")
     scores = motion_scores([im for _, im in candidates])

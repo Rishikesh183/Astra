@@ -5,6 +5,7 @@ and re-judges the claims the first pass couldn't settle."""
 from __future__ import annotations
 
 import json
+import threading
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -18,26 +19,31 @@ from .clients.token_factory import TokenFactoryClient, UsageLedger
 from .config import Settings
 from .crossexam import cross_examine
 from .events import read_window
-from .frames import Frame, sample_frames, save_frames, video_duration, windows
+from .frames import Cancelled, Frame, check_cancel, sample_frames, save_frames, video_duration, windows
 
 ProgressFn = Callable[[dict[str, Any]], None]
 VERDICT_KEYS = ("supported", "contradicted", "cant_tell")
+__all__ = ["Cancelled", "rejudge", "run"]
 
 
 class Progress:
-    """Reports the current stage plus a live cost snapshot after every model call."""
+    """Reports the current stage plus a live cost snapshot after every model call,
+    and stops the run (raises Cancelled) at the next stage or call once `cancel` is set."""
 
-    def __init__(self, callback: ProgressFn | None, ledger: UsageLedger, prices: dict, base_rows: list | None = None):
-        self.callback, self.ledger, self.prices = callback, ledger, prices
+    def __init__(self, callback: ProgressFn | None, ledger: UsageLedger, prices: dict, base_rows: list | None = None,
+                 cancel: threading.Event | None = None):
+        self.callback, self.ledger, self.prices, self.cancel = callback, ledger, prices, cancel
         self.base_rows = base_rows or []
         self.stage_name, self.detail = "starting", ""
         ledger.listeners.append(lambda _l: self.emit())
 
     def stage(self, name: str, detail: str = "") -> None:
+        check_cancel(self.cancel)
         self.stage_name, self.detail = name, detail
         self.emit()
 
     def emit(self) -> None:
+        check_cancel(self.cancel)
         if self.callback:
             rows = costs.merge_rows(self.base_rows, self.ledger.rows())
             self.callback({"stage": self.stage_name, "detail": self.detail, "cost": costs.estimate(rows, self.prices)})
@@ -59,7 +65,8 @@ def _read_source(client: TokenFactoryClient, model: str, sid: str, label: str, v
                  min_change: float) -> tuple[dict[str, Any], list[Frame]]:
     progress.stage("sampling", f"{label}: sampling frames")
     duration = video_duration(video)
-    sampled = sample_frames(video, max_frames=max_frames, fps=fps, prefix="" if sid == "main" else f"{sid}_")
+    sampled = sample_frames(video, max_frames=max_frames, fps=fps, prefix="" if sid == "main" else f"{sid}_",
+                            cancel=progress.cancel)
     kept, dropped = routing.drop_near_duplicates(sampled, min_change=min_change)
     groups = windows(kept, size=window_size, overlap=overlap)
     readings = []
@@ -92,11 +99,12 @@ def run(video: Path, story: str, *, settings: Settings | None = None, max_frames
         window_size: int = 6, overlap: int = 1, fps: float = 4.0, min_change: float = 1.5,
         out_dir: Path | None = None, place: str | None = None, date: str | None = None,
         client: TokenFactoryClient | None = None, tavily: TavilyClient | None = None,
-        policy: str | None = None, on_progress: ProgressFn | None = None) -> dict[str, Any]:
+        policy: str | None = None, on_progress: ProgressFn | None = None,
+        cancel: threading.Event | None = None) -> dict[str, Any]:
     settings, cache, client, names, policy, routes, prices = _setup(settings, client, policy)
     tavily = tavily or TavilyClient(settings, cache)
     started = time.monotonic()
-    progress = Progress(on_progress, client.ledger, prices)
+    progress = Progress(on_progress, client.ledger, prices, cancel=cancel)
 
     main, frames = _read_source(client, routes["see"], "main", "Original video", Path(video), progress,
                                 max_frames=max_frames, fps=fps, window_size=window_size, overlap=overlap,
@@ -156,14 +164,14 @@ def _ensure_sources(report: dict[str, Any]) -> None:
 def rejudge(report: dict[str, Any], extra_video: Path, note: str = "", *, settings: Settings | None = None,
             max_frames: int = 16, window_size: int = 6, overlap: int = 1, fps: float = 4.0, min_change: float = 1.5,
             out_dir: Path | None = None, client: TokenFactoryClient | None = None, policy: str | None = None,
-            on_progress: ProgressFn | None = None) -> dict[str, Any]:
+            on_progress: ProgressFn | None = None, cancel: threading.Event | None = None) -> dict[str, Any]:
     """Add extra footage as a new source and re-judge the Can't tell claims.
     Settled verdicts stay as they were. Returns the updated report."""
     settings, _cache, client, names, policy, routes, prices = _setup(settings, client, policy)
     _ensure_sources(report)
     started = time.monotonic()
     prior_rows = costs.merge_rows(*(r.get("usage_rows", []) for r in report["rounds"]))
-    progress = Progress(on_progress, client.ledger, prices, base_rows=prior_rows)
+    progress = Progress(on_progress, client.ledger, prices, base_rows=prior_rows, cancel=cancel)
     n = len(report["rounds"])
     sid = f"e{len(report['sources'])}"
 

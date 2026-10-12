@@ -90,6 +90,13 @@
   .btn.primary:active { transform: translateY(2px); box-shadow: 0 1px 0 #b89300; }
   .btn.big { padding: 13px 24px; font-size: 15.5px; border-radius: 11px; letter-spacing: .2px; }
   .btn:disabled { opacity: .55; cursor: default; transform: none; }
+  .btn.danger { color: var(--bad); border-color: var(--bad-line); background: var(--panel); }
+  .btn.danger:hover { background: var(--bad-bg); border-color: var(--bad); }
+  .btn.small { padding: 5px 11px; font-size: 12.5px; }
+  #live .btn.danger { margin-left: auto; padding: 5px 12px; font-size: 12.5px; }
+  #live .grow { flex: 1; }
+  .actions-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+  .pending .actions-row .muted { flex: 1; min-width: 180px; }
   .btn svg { width: 16px; height: 16px; }
   .pill { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 99px;
     background: var(--soft); color: var(--muted); white-space: nowrap; border: 1px solid var(--line); }
@@ -240,7 +247,10 @@
   .howto .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
 
   /* --- pending: investigation in progress --------------------------------------------- */
-  .pending { grid-column: 1 / -1; max-width: 580px; width: 100%; margin: 24px auto 0; padding: 0 0 22px; animation: rise .3s ease both; }
+  /* no entrance animation here: this card is redrawn on every poll and would flicker */
+  .pending { grid-column: 1 / -1; max-width: 580px; width: 100%; margin: 24px auto 0; padding: 0 0 22px; }
+  .notice { grid-column: 1 / -1; max-width: 580px; width: 100%; margin: 24px auto 0; animation: rise .3s ease both; }
+  .notice .banner { margin-bottom: 0; }
   .pending .stripe { height: 10px; background: var(--hazard); background-size: 34px 34px; animation: stripes 1s linear infinite; }
   @keyframes stripes { to { background-position: 34px 0; } }
   .pending .body { padding: 22px 26px 0; }
@@ -470,7 +480,7 @@ async function open(id) {
     }, 1500);
     return;
   }
-  if (meta.status === "error" && !report) return renderError(meta);
+  if ((meta.status === "error" || meta.status === "cancelled") && !report) return renderError(meta);
   render();
 }
 
@@ -515,21 +525,49 @@ function renderPending(meta) {
       h("div", { class: "title" }, h("span", { class: "spinner" }), meta.status === "queued" ? "Case queued" : "Investigation in progress"),
       h("p", { class: "sub" }, p.detail || "Starting…"),
       h("div", { class: "progressbar" }, h("i", { style: `width:${meta.status === "queued" ? 3 : pct}%` })),
-      stepList(p.stage)),
+      stepList(p.stage),
+      h("div", { class: "actions-row" }, h("span", { class: "muted src" }, "Long clips take longer to sample. Cancel stops at the next step."), cancelButton(meta))),
     p.cost ? h("div", { class: "card pad" }, costCard(p.cost, null, true)) : null));
 }
 
 function renderError(meta) {
-  $("#app").replaceChildren(h("div", { class: "card pad pending" },
-    h("h2", {}, "Run failed"), h("div", { class: "banner bad" }, meta.error || "Unknown error"),
-    h("button", { class: "btn primary", onclick: openDialog }, "Try another claim")));
+  const cancelled = meta.status === "cancelled";
+  $("#app").replaceChildren(h("div", { class: "card pad notice" },
+    h("h2", {}, cancelled ? "Claim cancelled" : "Run stopped"),
+    h("div", { class: `banner${cancelled ? "" : " bad"}` }, cancelled ? "This claim was cancelled before it finished. Nothing was judged." : (meta.error || "Unknown error")),
+    h("div", { class: "actions-row" },
+      h("button", { class: "btn danger", onclick: () => deleteClaim(state.id) }, "Delete claim"),
+      h("button", { class: "btn primary", onclick: openDialog }, "New claim"))));
 }
+
+async function cancelClaim(id, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "Cancelling…"; }
+  try { await api(`/api/claims/${id}/cancel`, { method: "POST" }); }
+  catch (e) { if (btn) { btn.disabled = false; btn.textContent = "Cancel"; } alert(`Could not cancel: ${e.message}`); }
+}
+
+async function deleteClaim(id) {
+  if (!confirm("Delete this claim and its video? This can't be undone.")) return;
+  const r = await fetch(`/api/claims/${id}`, { method: "DELETE" });
+  if (!r.ok) { alert(`Could not delete: ${(await r.json().catch(() => ({}))).detail || r.statusText}`); return; }
+  clearTimeout(state.poll);
+  state = { id: null, data: null, source: "main", selected: null, poll: null, rendered: null };
+  await loadList();
+}
+
+const cancelButton = meta => {
+  const btn = h("button", { class: "btn danger", type: "button" }, meta.cancelling ? "Cancelling…" : "Cancel");
+  btn.disabled = !!meta.cancelling;
+  btn.addEventListener("click", () => cancelClaim(state.id, btn));
+  return btn;
+};
 
 function updateLive(meta) {
   const p = meta.progress || {};
   const banner = $("#live");
   if (banner) banner.replaceChildren(h("span", { class: "spinner" }),
-    meta.status === "queued" ? "Extra footage queued…" : `Re-judging with the extra footage: ${p.detail || "starting"}`);
+    h("span", { class: "grow" }, meta.status === "queued" ? "Extra footage queued…" : `Re-judging with the extra footage: ${p.detail || "starting"}`),
+    cancelButton(meta));
   const meter = $("#meter");
   if (meter && p.cost) meter.replaceChildren(costCard(p.cost, state.data.report.routing, true));
   const form = $("#evidence-form");
@@ -753,7 +791,9 @@ function costCard(cost, routing, live = false, report = null) {
     h("h2", {}, live ? "Cost so far" : `Cost for this claim${routing ? ` · ${routing.policy} routing` : ""}`),
     head,
     h("table", { class: "cost" }, h("tr", {}, h("th", {}, "Task · model"), h("th", { class: "num" }, "Calls"), h("th", { class: "num" }, "Tokens"), h("th", { class: "num" }, "Cost")), rows),
-    report ? h("p", { class: "muted src", style: "margin:8px 0 0" }, `${report.usage.calls} model calls · ${report.elapsed_s}s for the last round`) : null);
+    report ? h("div", { class: "actions-row", style: "margin-top:10px" },
+      h("span", { class: "muted src" }, `${report.usage.calls} model calls · ${report.elapsed_s}s for the last round`),
+      h("button", { class: "btn danger small", type: "button", onclick: () => deleteClaim(state.id) }, "Delete claim")) : null);
 }
 
 function renderContext(ctx) {
