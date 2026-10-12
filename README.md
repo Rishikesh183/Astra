@@ -72,8 +72,11 @@ physics-witness run samples/synthetic.mp4 "I was stopped at the light. The other
 # Web app: video + timeline on the left, the story's claims and verdicts on the right
 physics-witness add samples/synthetic.mp4 "The truck reversed into my door." --title "Sample"   # optional: pre-load a claim
 physics-witness evidence <claim-id> rear.mp4 --note "rear dashcam"   # act loop from the CLI
+physics-witness trim long-clip.webm --start 1:05 --length 20         # cut the 20 s around the incident
 physics-witness serve            # http://127.0.0.1:8000
 ```
+
+Short clips (5–30 s around the incident) give the best results. Longer clips work: frame sampling is capped at 120 candidate frames and clips over 90 s are sampled by seeking, so a 5-minute 1080p clip samples in well under a minute. Use `physics-witness trim` to cut out the part that matters. A running claim can be **cancelled** from the progress screen, and any claim can be **deleted**. If the server stops mid-run, the claim is marked as interrupted on the next start instead of staying "running".
 
 In the web app you can upload a clip with a story (plus optional place and date). Claim runs happen in the background. Clicking a claim, a timeline marker or an evidence frame jumps the video to that moment, switching to the extra clip if that's where the evidence is. When some claims are Can't tell, the "Ask the claimant" card shows the request, and you can upload the clip the claimant sends to re-judge. Claims are stored under `data/claims/<id>/` (video, story, `report.json`, evidence frames).
 

@@ -1,4 +1,4 @@
-"""Command line: `physics-witness checks|frames|run|add|evidence|liar|serve`."""
+"""Command line: `physics-witness checks|frames|run|add|evidence|liar|trim|serve`."""
 
 from __future__ import annotations
 
@@ -188,6 +188,31 @@ def _cmd_liar_report(args) -> int:
     return 0
 
 
+def _seconds(text: str) -> float:
+    """'75', '1:15' or '0:01:15.5' -> seconds."""
+    parts = [float(x) for x in str(text).split(":")]
+    total = 0.0
+    for part in parts:
+        total = total * 60 + part
+    return total
+
+
+def _cmd_trim(args) -> int:
+    import subprocess
+
+    from .frames import ffmpeg_exe, video_duration
+    start, length = _seconds(args.start), _seconds(args.length)
+    out = args.out or args.video.with_name(f"{args.video.stem}-{int(start)}s-{int(length)}s{args.video.suffix}")
+    # Re-encode so the cut is frame-accurate (a stream copy can only cut on keyframes).
+    cmd = [ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{start:.3f}", "-i", str(args.video),
+           "-t", f"{length:.3f}", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+           str(out.with_suffix(".mp4"))]
+    subprocess.run(cmd, check=True)
+    out = out.with_suffix(".mp4")
+    print(f"{out}  ({video_duration(out):.1f}s)")
+    return 0
+
+
 def _cmd_serve(args) -> int:
     import uvicorn
 
@@ -272,6 +297,13 @@ def main(argv: list[str] | None = None) -> int:
     lp = lsub.add_parser("report", help="rebuild metrics and report.html from results.json")
     lp.add_argument("--out", type=Path, default=Path("liartest/results"))
     lp.set_defaults(fn=_cmd_liar_report)
+
+    t = sub.add_parser("trim", help="cut a short piece out of a long clip (e.g. the 20 s around the crash)")
+    t.add_argument("video", type=Path)
+    t.add_argument("--start", default="0", help="where to start: seconds or m:ss (e.g. 1:05)")
+    t.add_argument("--length", default="20", help="how long: seconds or m:ss (default 20)")
+    t.add_argument("--out", type=Path, help="output file (always .mp4)")
+    t.set_defaults(fn=_cmd_trim)
 
     w = sub.add_parser("serve", help="start the web app")
     w.add_argument("--data", type=Path, default=Path("data/claims"))

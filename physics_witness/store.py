@@ -15,8 +15,10 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .config import Settings
+from .frames import Cancelled, check_cancel
 
 RUN_ID = re.compile(r"^[a-f0-9]{12}$")
+BUSY = ("queued", "running")
 SOURCE_ID = re.compile(r"^(main|e\d{1,2})$")
 FRAME_NAME = re.compile(r"^(e\d{1,2}_)?frame_[0-9.]+s\.jpg$")
 MAX_EXTRA = 5
@@ -36,6 +38,31 @@ class RunStore:
         self._runner = runner
         from .pipeline import rejudge
         self._rejudger = rejudge
+        self._cancel: dict[str, threading.Event] = {}
+        self._recover_interrupted()
+
+    def _recover_interrupted(self) -> None:
+        """Runs only live in this process's threads, so after a restart anything
+        still marked queued/running is dead. Mark it, instead of polling forever."""
+        for meta in self.list():
+            if meta.get("status") not in BUSY:
+                continue
+            run_id = meta["id"]
+            if self.report(run_id) is not None:
+                # A re-judge was cut off: the saved report is intact, drop the half-added clip.
+                self._drop_unjudged_clips(run_id)
+                self._write_meta(run_id, status="done", stage_kind=None, progress=None,
+                                 error="Extra footage was interrupted because the server stopped. Upload it again.")
+            else:
+                self._write_meta(run_id, status="error", progress=None,
+                                 error="Interrupted: the server stopped while this claim was running. Delete it and upload again.")
+
+    def _drop_unjudged_clips(self, run_id: str) -> None:
+        d = self.dir(run_id)
+        known = {s["id"] for s in (self.report(run_id) or {}).get("sources", [{"id": "main"}])}
+        for f in d.iterdir():
+            if re.fullmatch(r"e\d{1,2}", f.stem) and f.suffix.lower() in VIDEO_EXTS and f.stem not in known:
+                f.unlink(missing_ok=True)
 
     # --- paths --------------------------------------------------------------
 
@@ -112,6 +139,7 @@ class RunStore:
         self._write_meta(run_id, id=run_id, title=title.strip() or story.strip().split("\n")[0][:80],
                          place=place.strip(), date=date.strip(), status="queued",
                          created=time.time(), error=None, summary=None)
+        self._cancel[run_id] = threading.Event()
         future = self._pool.submit(self._execute, run_id)
         if wait:
             future.result()
@@ -121,15 +149,20 @@ class RunStore:
         return lambda p: self._write_meta(run_id, progress=p)
 
     def _execute(self, run_id: str) -> None:
-        meta = self._write_meta(run_id, status="running", started=time.time(), progress=None)
+        cancel = self._cancel.setdefault(run_id, threading.Event())
         d = self.root / run_id
         try:
+            check_cancel(cancel)                      # cancelled while still queued
+            meta = self._write_meta(run_id, status="running", started=time.time(), progress=None)
             report = self._runner(self.video_path(run_id), (d / "story.txt").read_text(),
                                   settings=self.settings, out_dir=d, on_progress=self._progress(run_id),
-                                  place=meta.get("place") or None, date=meta.get("date") or None)
+                                  place=meta.get("place") or None, date=meta.get("date") or None, cancel=cancel)
             self._write_meta(run_id, status="done", finished=time.time(), summary=report.get("summary"),
                              mode=report.get("mode"), rounds=len(report.get("rounds", [])),
-                             cost=report.get("cost"))
+                             cost=report.get("cost"), cancelling=False)
+        except Cancelled:
+            (d / "report.json").unlink(missing_ok=True)
+            self._write_meta(run_id, status="cancelled", finished=time.time(), progress=None, error=None, cancelling=False)
         except Exception as exc:  # surface any failure to the UI instead of losing it
             (d / "error.log").write_text(traceback.format_exc())
             self._write_meta(run_id, status="error", finished=time.time(), error=f"{type(exc).__name__}: {exc}")
@@ -152,26 +185,58 @@ class RunStore:
         d = self.dir(run_id)
         (shutil.move if move else shutil.copyfile)(str(video_src), str(d / f"{sid}{suffix}"))
         self._write_meta(run_id, status="queued", stage_kind="rejudge", error=None)
+        self._cancel[run_id] = threading.Event()
         future = self._pool.submit(self._execute_rejudge, run_id, sid, note)
         if wait:
             future.result()
         return sid
 
     def _execute_rejudge(self, run_id: str, sid: str, note: str) -> None:
-        self._write_meta(run_id, status="running", progress=None)
+        cancel = self._cancel.setdefault(run_id, threading.Event())
         d = self.root / run_id
         try:
+            check_cancel(cancel)
+            self._write_meta(run_id, status="running", progress=None)
             report = self._rejudger(self.report(run_id), self.video_path(run_id, sid), note,
-                                    settings=self.settings, out_dir=d, on_progress=self._progress(run_id))
+                                    settings=self.settings, out_dir=d, on_progress=self._progress(run_id),
+                                    cancel=cancel)
             self._write_meta(run_id, status="done", finished=time.time(), summary=report.get("summary"),
                              mode=report.get("mode"), rounds=len(report.get("rounds", [])),
-                             cost=report.get("cost"), stage_kind=None)
+                             cost=report.get("cost"), stage_kind=None, cancelling=False)
+        except Cancelled:
+            # The saved report was never touched; just drop the clip.
+            self.video_path(run_id, sid).unlink(missing_ok=True)
+            self._write_meta(run_id, status="done", stage_kind=None, progress=None, finished=time.time(),
+                             error="Extra footage cancelled. The verdicts are unchanged.", cancelling=False)
         except Exception as exc:
             (d / "error.log").write_text(traceback.format_exc())
             # The saved report is untouched, so the claim stays usable; drop the clip that failed.
             self.video_path(run_id, sid).unlink(missing_ok=True)
             self._write_meta(run_id, status="done", stage_kind=None, finished=time.time(),
                              error=f"Extra evidence failed: {type(exc).__name__}: {exc}")
+
+    def cancel(self, run_id: str) -> bool:
+        """Ask a queued or running claim to stop. It stops at the next stage or
+        model call (within a second or two while sampling frames). Returns False
+        if there was nothing to cancel."""
+        meta = self.meta(run_id)
+        if meta.get("status") not in BUSY:
+            return False
+        event = self._cancel.get(run_id)
+        if event is None:
+            # Not running in this process (stale after a restart): mark it directly.
+            self._write_meta(run_id, status="cancelled", progress=None)
+            return True
+        event.set()
+        self._write_meta(run_id, cancelling=True)
+        return True
+
+    def delete(self, run_id: str) -> None:
+        d = self.dir(run_id)
+        if self.meta(run_id).get("status") in BUSY:
+            raise ValueError("cancel the claim before deleting it")
+        shutil.rmtree(d)
+        self._cancel.pop(run_id, None)
 
     def shutdown(self) -> None:
         self._pool.shutdown(wait=False, cancel_futures=True)

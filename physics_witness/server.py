@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from .config import Settings
 from .store import VIDEO_EXTS, RunStore
@@ -89,6 +89,20 @@ def create_app(data_dir: Path = Path("data/claims"), settings: Settings | None =
     def get_claim(run_id: str):
         meta = _get(store.meta, run_id)
         return {"meta": meta, "report": store.report(run_id)}
+
+    @app.post("/api/claims/{run_id}/cancel", status_code=202)
+    def cancel_claim(run_id: str):
+        if not _get(store.cancel, run_id):
+            raise HTTPException(409, "this claim is not running")
+        return {"id": run_id, "cancelling": True}
+
+    @app.delete("/api/claims/{run_id}", status_code=204)
+    def delete_claim(run_id: str):
+        try:
+            _get(store.delete, run_id)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from None
+        return Response(status_code=204)
 
     @app.get("/api/claims/{run_id}/video")
     def get_video(run_id: str, source: str = Query("main")):
