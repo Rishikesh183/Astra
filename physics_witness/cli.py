@@ -33,7 +33,7 @@ def _cmd_frames(args) -> int:
 
 def _cmd_run(args) -> int:
     from .pipeline import run
-    story = Path(args.story).read_text() if Path(args.story).is_file() else args.story
+    story = Path(args.story).read_text(encoding="utf-8") if Path(args.story).is_file() else args.story
     report = run(args.video, story, max_frames=args.max_frames, fps=args.fps, out_dir=args.out,
                  place=args.place, date=args.date)
     if args.json:
@@ -58,7 +58,7 @@ def _cmd_run(args) -> int:
 
 def _cmd_add(args) -> int:
     from .store import RunStore
-    story = Path(args.story).read_text() if Path(args.story).is_file() else args.story
+    story = Path(args.story).read_text(encoding="utf-8") if Path(args.story).is_file() else args.story
     store = RunStore(args.data)
     try:
         run_id = store.create(args.video, story, title=args.title, place=args.place or "", date=args.date or "", wait=True)
@@ -181,7 +181,7 @@ def _cmd_liar_report(args) -> int:
     import json
 
     from .liar.runner import metrics, write_outputs
-    result = json.loads((args.out / "results.json").read_text())
+    result = json.loads((args.out / "results.json").read_text(encoding="utf-8"))
     result["metrics"] = metrics(result["rows"])
     write_outputs(result, args.out)
     print(args.out / "report.html")
@@ -312,7 +312,19 @@ def main(argv: list[str] | None = None) -> int:
     w.set_defaults(fn=_cmd_serve)
 
     args = p.parse_args(argv)
+    _utf8_console()
     return args.fn(args)
+
+
+def _utf8_console() -> None:
+    """Windows consoles default to a legacy code page; model replies can contain
+    any script (e.g. Cyrillic text read off a TV logo), so print UTF-8 and
+    replace anything the console still can't show instead of crashing."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
 
 
 if __name__ == "__main__":

@@ -147,7 +147,7 @@ def run(video: Path, story: str, *, settings: Settings | None = None, max_frames
     if out_dir:
         out_dir = Path(out_dir)
         save_frames(frames, out_dir / "frames")
-        (out_dir / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False))
+        (out_dir / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     return report
 
 
@@ -215,5 +215,5 @@ def rejudge(report: dict[str, Any], extra_video: Path, note: str = "", *, settin
     if out_dir:
         out_dir = Path(out_dir)
         save_frames(frames, out_dir / "frames")
-        (out_dir / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False))
+        (out_dir / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     return report

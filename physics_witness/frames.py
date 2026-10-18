@@ -77,7 +77,7 @@ SEEK_ABOVE_S = 90.0       # longer clips: jump to each sample time instead of de
 
 def _run_cancellable(cmd: list[str], cancel: threading.Event | None, log_path: Path) -> str:
     """Run ffmpeg, killing it promptly if `cancel` is set. Returns its stderr."""
-    with open(log_path, "w") as log:
+    with open(log_path, "w", encoding="utf-8") as log:
         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=log)
         try:
             while proc.poll() is None:
@@ -90,8 +90,8 @@ def _run_cancellable(cmd: list[str], cancel: threading.Event | None, log_path: P
             if proc.poll() is None:
                 proc.kill()
     if proc.returncode != 0:
-        raise subprocess.CalledProcessError(proc.returncode, cmd, stderr=log_path.read_text()[-2000:])
-    return log_path.read_text()
+        raise subprocess.CalledProcessError(proc.returncode, cmd, stderr=log_path.read_text(encoding="utf-8", errors="replace")[-2000:])
+    return log_path.read_text(encoding="utf-8", errors="replace")
 
 
 def _decode_all(video: Path, gap: float, width: int, tmp: str, cancel) -> list[tuple[float, Image.Image]]:
