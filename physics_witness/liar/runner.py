@@ -127,7 +127,7 @@ def run_case(case: Case, clips_dir: Path, out_dir: Path, runner: Runner, *, forc
         report_path = run_dir / "report.json"
         started = time.monotonic()
         if report_path.is_file() and not force:
-            rows.append(score(case, kind, json.loads(report_path.read_text())))
+            rows.append(score(case, kind, json.loads(report_path.read_text(encoding="utf-8"))))
             continue
         run_dir.mkdir(parents=True, exist_ok=True)
         try:
@@ -135,7 +135,7 @@ def run_case(case: Case, clips_dir: Path, out_dir: Path, runner: Runner, *, forc
                             place=case.place or None, date=case.date or None, **run_kwargs)
             rows.append(score(case, kind, report, elapsed=time.monotonic() - started))
         except Exception as exc:
-            (run_dir / "error.log").write_text(traceback.format_exc())
+            (run_dir / "error.log").write_text(traceback.format_exc(), encoding="utf-8")
             rows.append(score(case, kind, None, error=f"{type(exc).__name__}: {exc}",
                               elapsed=time.monotonic() - started))
     return rows
@@ -176,6 +176,6 @@ def write_outputs(result: dict[str, Any], out_dir: Path) -> None:
         w = csv.DictWriter(fh, fieldnames=list(rows[0].keys()) if rows else ["id"])
         w.writeheader()
         w.writerows(rows)
-    (out_dir / "metrics.json").write_text(json.dumps(result["metrics"], indent=2))
-    (out_dir / "results.json").write_text(json.dumps(result, indent=2, ensure_ascii=False))
-    (out_dir / "report.html").write_text(render_html(result))
+    (out_dir / "metrics.json").write_text(json.dumps(result["metrics"], indent=2), encoding="utf-8")
+    (out_dir / "results.json").write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+    (out_dir / "report.html").write_text(render_html(result), encoding="utf-8")

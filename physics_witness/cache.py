@@ -30,11 +30,11 @@ class ResponseCache:
             return call(), False
         path = self._path(namespace, self.key_for(payload))
         if path.is_file():
-            return json.loads(path.read_text()), True
+            return json.loads(path.read_text(encoding="utf-8")), True
         value = call()
         path.parent.mkdir(parents=True, exist_ok=True)
         # Write-then-rename so parallel runs (Liar Test workers) never read a half-written file.
         tmp = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
-        tmp.write_text(json.dumps(value, ensure_ascii=False))
+        tmp.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
         os.replace(tmp, path)
         return value, False

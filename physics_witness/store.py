@@ -97,26 +97,26 @@ class RunStore:
     def _write_meta(self, run_id: str, **changes: Any) -> dict[str, Any]:
         with self._lock:
             path = self.root / run_id / "meta.json"
-            meta = json.loads(path.read_text()) if path.is_file() else {}
+            meta = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
             meta.update(changes)
             tmp = path.with_suffix(".tmp")
-            tmp.write_text(json.dumps(meta, indent=2, ensure_ascii=False))
+            tmp.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
             tmp.replace(path)
             return meta
 
     def meta(self, run_id: str) -> dict[str, Any]:
-        return json.loads((self.dir(run_id) / "meta.json").read_text())
+        return json.loads((self.dir(run_id) / "meta.json").read_text(encoding="utf-8"))
 
     def report(self, run_id: str) -> dict[str, Any] | None:
         p = self.dir(run_id) / "report.json"
-        return json.loads(p.read_text()) if p.is_file() else None
+        return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else None
 
     def list(self) -> list[dict[str, Any]]:
         out = []
         for d in self.root.iterdir():
             if RUN_ID.match(d.name) and (d / "meta.json").is_file():
                 try:
-                    out.append(json.loads((d / "meta.json").read_text()))
+                    out.append(json.loads((d / "meta.json").read_text(encoding="utf-8")))
                 except json.JSONDecodeError:
                     continue
         return sorted(out, key=lambda m: m.get("created", 0), reverse=True)
@@ -135,7 +135,7 @@ class RunStore:
         d.mkdir(parents=True)
         dest = d / f"video{suffix}"
         (shutil.move if move else shutil.copyfile)(str(video_src), str(dest))
-        (d / "story.txt").write_text(story)
+        (d / "story.txt").write_text(story, encoding="utf-8")
         self._write_meta(run_id, id=run_id, title=title.strip() or story.strip().split("\n")[0][:80],
                          place=place.strip(), date=date.strip(), status="queued",
                          created=time.time(), error=None, summary=None)
@@ -154,7 +154,7 @@ class RunStore:
         try:
             check_cancel(cancel)                      # cancelled while still queued
             meta = self._write_meta(run_id, status="running", started=time.time(), progress=None)
-            report = self._runner(self.video_path(run_id), (d / "story.txt").read_text(),
+            report = self._runner(self.video_path(run_id), (d / "story.txt").read_text(encoding="utf-8"),
                                   settings=self.settings, out_dir=d, on_progress=self._progress(run_id),
                                   place=meta.get("place") or None, date=meta.get("date") or None, cancel=cancel)
             self._write_meta(run_id, status="done", finished=time.time(), summary=report.get("summary"),
@@ -164,7 +164,7 @@ class RunStore:
             (d / "report.json").unlink(missing_ok=True)
             self._write_meta(run_id, status="cancelled", finished=time.time(), progress=None, error=None, cancelling=False)
         except Exception as exc:  # surface any failure to the UI instead of losing it
-            (d / "error.log").write_text(traceback.format_exc())
+            (d / "error.log").write_text(traceback.format_exc(), encoding="utf-8")
             self._write_meta(run_id, status="error", finished=time.time(), error=f"{type(exc).__name__}: {exc}")
 
     def add_evidence(self, run_id: str, video_src: Path, note: str = "", *, move: bool = False,
@@ -209,7 +209,7 @@ class RunStore:
             self._write_meta(run_id, status="done", stage_kind=None, progress=None, finished=time.time(),
                              error="Extra footage cancelled. The verdicts are unchanged.", cancelling=False)
         except Exception as exc:
-            (d / "error.log").write_text(traceback.format_exc())
+            (d / "error.log").write_text(traceback.format_exc(), encoding="utf-8")
             # The saved report is untouched, so the claim stays usable; drop the clip that failed.
             self.video_path(run_id, sid).unlink(missing_ok=True)
             self._write_meta(run_id, status="done", stage_kind=None, finished=time.time(),
@@ -227,8 +227,10 @@ class RunStore:
             # Not running in this process (stale after a restart): mark it directly.
             self._write_meta(run_id, status="cancelled", progress=None)
             return True
-        event.set()
+        # Flag first, then signal: the run writes cancelling=False when it stops,
+        # and that must not be overwritten by a late cancelling=True.
         self._write_meta(run_id, cancelling=True)
+        event.set()
         return True
 
     def delete(self, run_id: str) -> None:

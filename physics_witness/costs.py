@@ -17,7 +17,7 @@ TOKEN_FIELDS = ("prompt_tokens", "completion_tokens", "saved_prompt_tokens", "sa
 def load_prices(path: Path | None) -> dict[str, dict[str, float]]:
     if not path or not Path(path).is_file():
         return {}
-    raw = json.loads(Path(path).read_text())
+    raw = json.loads(Path(path).read_text(encoding="utf-8"))
     out = {}
     for key, val in raw.items():
         if key.startswith("_") or not isinstance(val, dict):
