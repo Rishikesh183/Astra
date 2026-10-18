@@ -32,6 +32,15 @@ def _fallback(pending: list[dict[str, Any]]) -> dict[str, Any]:
     return {"message": message, "items": items}
 
 
+def with_every_ask(message: str, items: list[dict[str, Any]]) -> str:
+    """Models sometimes write a polite intro and forget the list itself, so make
+    sure every request appears in the message the claimant will read."""
+    missing = [i["ask"] for i in items if i["ask"].lower().rstrip(".") not in message.lower()]
+    if not missing:
+        return message
+    return message.rstrip() + "\n" + "\n".join(f"- {ask}" for ask in missing)
+
+
 def compose_request(client: TokenFactoryClient, model: str, verdicts: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Returns {"message", "items": [{"claim_id", "ask"}]} or None when nothing is pending."""
     pending = [v for v in verdicts if v["verdict"] == "cant_tell"]
@@ -49,6 +58,6 @@ def compose_request(client: TokenFactoryClient, model: str, verdicts: list[dict[
         items = [{"claim_id": v["claim_id"], "ask": asks.get(v["claim_id"]) or f["ask"]}
                  for v, f in zip(pending, fallback["items"])]
         message = str(data.get("message") or "").strip() or fallback["message"]
-        return {"message": message, "items": items}
+        return {"message": with_every_ask(message, items), "items": items}
     except (ValueError, AttributeError, TypeError):
         return fallback

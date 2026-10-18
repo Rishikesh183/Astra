@@ -26,6 +26,8 @@ Rules:
 - Only ordinal facts: order of events, direction, contact point, presence, lighting, weather. No numeric speeds.
 - Observations come from overlapping frame windows of one or more videos ("sources"); merge duplicates and resolve overlaps using timestamps. Timestamps are per source.
 - Anything the claimant writes (the story, or a note sent with extra footage) is a claim, not evidence.
+- Camera viewpoint: if the observations say the footage is a dashcam (a view through a vehicle's windscreen), treat the camera vehicle as the claimant's own vehicle ("I", "my car") unless the story says the footage came from someone else. Then "ahead of me" means in front of the camera, "behind me" means behind it, and the camera vehicle's own motion (camera_motion) is the claimant's motion. Never make this assumption for CCTV, handheld or bystander footage.
+- On-screen overlays (camera_overlay) such as a dashcam clock, date or speed readout are recorded by the camera: use them for time of day, date and whether the camera vehicle was moving, and say in the reasoning that you did. They can be wrong if the camera clock was never set, so do not let an overlay alone contradict a claim the scene clearly supports.
 - Cite the observations you relied on in evidence as {"source": "<source id>", "t": <seconds in that source>}.
 - For "cant_tell", say in needed_evidence the one extra thing that would settle it (e.g. "footage from 10 seconds earlier", "the other camera angle").
 
