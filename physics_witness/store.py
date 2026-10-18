@@ -227,8 +227,10 @@ class RunStore:
             # Not running in this process (stale after a restart): mark it directly.
             self._write_meta(run_id, status="cancelled", progress=None)
             return True
-        event.set()
+        # Flag first, then signal: the run writes cancelling=False when it stops,
+        # and that must not be overwritten by a late cancelling=True.
         self._write_meta(run_id, cancelling=True)
+        event.set()
         return True
 
     def delete(self, run_id: str) -> None:
