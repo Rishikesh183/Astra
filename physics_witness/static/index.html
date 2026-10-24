@@ -140,6 +140,9 @@
     border: 2.5px solid var(--panel); box-shadow: 0 3px 6px -1px rgba(0, 0, 0, .35); transition: transform .15s; z-index: 2; }
   .mark:hover { transform: translateX(-9px) rotate(-45deg) scale(1.2); }
   .mark.sel { transform: translateX(-9px) rotate(-45deg) scale(1.25); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 35%, transparent), 0 3px 6px -1px rgba(0, 0, 0, .35); }
+  .cut { position: absolute; top: 4px; bottom: 2px; width: 0; border-left: 3px dashed var(--bad-lamp); transform: translateX(-1px); z-index: 1; }
+  .cut::before { content: "CUT"; position: absolute; top: -2px; left: 4px; font: 700 9px/1 var(--mono); color: var(--bad-lamp); letter-spacing: .5px; }
+  .jolt { position: absolute; top: 40px; transform: translateX(-50%); font-size: 13px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.4)); z-index: 1; }
   .playhead { position: absolute; top: 18px; bottom: 6px; width: 3px; background: var(--cone); pointer-events: none; border-radius: 2px; transition: left .1s linear; z-index: 1; }
   .playhead::after { content: ""; position: absolute; left: -5px; bottom: -6px; border: 6.5px solid transparent; border-bottom: 9px solid var(--cone); border-top: 0; }
   .timeinfo { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 12px; padding: 4px 20px 14px; font-variant-numeric: tabular-nums; }
@@ -390,7 +393,7 @@
     <label class="drop" id="drop">
       <input type="file" name="video" accept="video/*" required>
       <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg></span>
-      <span><strong id="drop-title">Drop the dashcam / CCTV clip here</strong><span id="drop-sub">or click to browse · MP4, MOV, WebM up to 200 MB</span></span>
+      <span><strong id="drop-title">Drop the dashcam / CCTV clip here</strong><span id="drop-sub">or click to browse · one continuous clip, MP4, MOV or WebM up to 200 MB</span></span>
     </label>
     <label>Claimant's story<textarea name="story" required placeholder="I was stopped at the red light when the other car hit my rear bumper…"></textarea></label>
     <div class="row">
@@ -610,6 +613,7 @@ function render() {
   const banners = [
     report.mode !== "live" ? h("div", { class: "banner" }, "Offline mode: no model calls were made, so every verdict is Can't tell. Add NEBIUS_API_KEY to get real readings.") : null,
     meta.error ? h("div", { class: "banner bad" }, meta.error) : null,
+    joinedBanner(report),
     h("div", { id: "live" }),
   ];
   const left = h("section", {}, banners,
@@ -660,6 +664,16 @@ function render() {
   if (busy(meta)) updateLive(meta);
 }
 
+function joinedBanner(report) {
+  const parts = report.sources.filter(s => (s.segments || []).length > 1);
+  if (!parts.length) return null;
+  return h("div", { class: "banner" }, parts.map(s => {
+    const cuts = s.segments.slice(1).map(g => fmt(g.t_start)).join(", ");
+    return `${s.label} looks like ${s.segments.length} different clips joined together (cut at ${cuts}). ` +
+      "Verdicts only use the clip the story describes. For best results upload one continuous clip and add other clips as extra footage.";
+  }));
+}
+
 function showSource(id, force = false) {
   if (id === state.source && !force) return Promise.resolve();
   const src = sourceById(id);
@@ -668,6 +682,10 @@ function showSource(id, force = false) {
   const tl = state.tl;
   tl.replaceChildren(h("div", { class: "track" }));
   for (const f of src.frames) tl.append(h("div", { class: "tick", style: `left:${state.pct(f.t)}` }));
+  for (const g of (src.segments || []).slice(1))
+    tl.append(h("div", { class: "cut", style: `left:${state.pct(g.t_start)}`, title: `Cut to different footage at ${fmt(g.t_start)}${g.cut_note ? ` · ${g.cut_note}` : ""}` }));
+  for (const j of src.camera_jolts || [])
+    tl.append(h("div", { class: "jolt", style: `left:${state.pct(j.t)}`, title: `Camera jolt at ${fmt(j.t)}${j.what ? ` · ${j.what}` : ""}` }, "⚡"));
   for (const v of state.data.report.verdicts) for (const r of v.evidence || []) if (r.source === src.id)
     tl.append(h("div", { class: `mark v-${v.verdict}${v.claim_id === state.selected ? " sel" : ""}`, "data-claim": v.claim_id,
       style: `left:${state.pct(r.t)}`, title: `${fmt(r.t)} · ${v.claim}`,
@@ -823,7 +841,7 @@ const showFile = () => {
   const f = fileInput.files[0];
   drop.classList.toggle("has", !!f);
   $("#drop-title").textContent = f ? f.name : "Drop the dashcam / CCTV clip here";
-  $("#drop-sub").textContent = f ? `${(f.size / 1048576).toFixed(1)} MB · click to change` : "or click to browse · MP4, MOV, WebM up to 200 MB";
+  $("#drop-sub").textContent = f ? `${(f.size / 1048576).toFixed(1)} MB · click to change` : "or click to browse · one continuous clip, MP4, MOV or WebM up to 200 MB";
 };
 fileInput.addEventListener("change", showFile);
 for (const ev of ["dragenter", "dragover"]) drop.addEventListener(ev, () => drop.classList.add("over"));

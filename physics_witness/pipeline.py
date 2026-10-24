@@ -73,13 +73,32 @@ def _read_source(client: TokenFactoryClient, model: str, sid: str, label: str, v
     for i, g in enumerate(groups):
         progress.stage("seeing", f"{label}: Cosmos window {i + 1} of {len(groups)}")
         readings.append(read_window(client, model, g, i, source=sid))
+    jolts = sorted({(m["t"], m["what"]) for r in readings for m in r.camera_jolts})
     source = {
         "id": sid, "label": label, "video": Path(video).name, "duration_s": round(duration, 2),
+        "segments": segments_from_cuts([m for r in readings for m in r.scene_cuts], duration),
+        "camera_jolts": [{"t": t, "what": w} for t, w in jolts],
         "frames": [{"t": round(f.t, 2), "motion": round(f.motion, 2), "file": f.filename} for f in kept],
         "frames_dropped": [round(f.t, 2) for f in dropped],
         "windows": [r.to_dict() for r in readings],
     }
     return source, kept
+
+
+MIN_SEGMENT_S = 1.0
+
+
+def segments_from_cuts(cuts: list[dict], duration: float) -> list[dict]:
+    """Split a source at the scene cuts the frame reader reported. Cuts closer
+    than MIN_SEGMENT_S to each other or to either end are merged away."""
+    times = []
+    for t in sorted(c["t"] for c in cuts):
+        if MIN_SEGMENT_S <= t <= duration - MIN_SEGMENT_S and (not times or t - times[-1] >= MIN_SEGMENT_S):
+            times.append(t)
+    notes = {c["t"]: c.get("what", "") for c in cuts}
+    bounds = [0.0, *times, round(duration, 2)]
+    return [{"index": i, "t_start": bounds[i], "t_end": bounds[i + 1],
+             "cut_note": notes.get(bounds[i], "") if i else ""} for i in range(len(bounds) - 1)]
 
 
 def _summary(verdicts: list[dict[str, Any]]) -> dict[str, int]:
@@ -157,6 +176,9 @@ def _ensure_sources(report: dict[str, Any]) -> None:
         report["sources"] = [{"id": "main", "label": "Original video", "video": Path(report["video"]).name,
                               "duration_s": report["duration_s"], "frames": report["frames"],
                               "frames_dropped": [], "windows": report["windows"]}]
+    for src in report["sources"]:
+        src.setdefault("segments", [{"index": 0, "t_start": 0.0, "t_end": src["duration_s"], "cut_note": ""}])
+        src.setdefault("camera_jolts", [])
     report.setdefault("rounds", [{"round": 0, "kind": "initial", "source": "main", "rejudged": [],
                                   "changes": [], "request": None, "usage_rows": report["usage"].get("rows", [])}])
 

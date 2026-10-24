@@ -156,24 +156,49 @@ def motion_scores(images: list[Image.Image]) -> list[float]:
     return scores
 
 
+SPIKE_RATIO = 2.5   # a frame change this many times the clip's median counts as a jolt or a cut
+LEAD_IN = 2         # candidates kept just before each spike: the moments leading up to an impact
+
+
 def select_indices(scores: list[float], max_frames: int, min_gap: int = 1) -> list[int]:
-    """Always keep first and last frame, then fill with highest-motion frames
-    at least `min_gap` candidates apart. Returned in time order."""
+    """Choose which candidate frames the vision model sees, in time order.
+
+    Picking purely by motion fails on dashcam footage: driving is always
+    "high motion", and a camera knocked by an impact or a cut to other
+    footage scores highest of all, so the half-second before an impact could
+    be skipped. So, in priority order:
+      1. first and last frame;
+      2. each big spike (jolt or cut) plus the LEAD_IN frames just before it;
+      3. an even spread over the whole clip (about half the budget);
+      4. the remaining budget by motion, at least `min_gap` candidates apart.
+    """
     n = len(scores)
     if n <= max_frames:
         return list(range(n))
     chosen = {0, n - 1}
-    by_motion = sorted(range(n), key=lambda i: scores[i], reverse=True)
-    for i in by_motion:
-        if len(chosen) >= max_frames:
-            break
-        if all(abs(i - c) > min_gap for c in chosen):
+
+    def add(i: int) -> None:
+        if 0 <= i < n and len(chosen) < max_frames:
             chosen.add(i)
-    # Low-motion clips may not fill the budget under the gap rule.
-    for i in by_motion:
-        if len(chosen) >= max_frames:
-            break
-        chosen.add(i)
+
+    ordered = sorted(range(1, n), key=lambda i: scores[i], reverse=True)
+    rest = sorted(scores[1:])
+    median = rest[len(rest) // 2] if rest else 0.0
+    if median > 0:
+        spikes = [i for i in ordered if scores[i] >= SPIKE_RATIO * median][: max(1, max_frames // 5)]
+        for i in spikes:
+            for j in range(i, i - LEAD_IN - 1, -1):
+                add(j)
+
+    spread = max(2, max_frames // 2)
+    for k in range(spread):
+        add(round(k * (n - 1) / (spread - 1)))
+
+    for i in ordered:
+        if all(abs(i - c) > min_gap for c in chosen):
+            add(i)
+    for i in ordered:                     # low-motion clips may not fill the budget under the gap rule
+        add(i)
     return sorted(chosen)
 
 

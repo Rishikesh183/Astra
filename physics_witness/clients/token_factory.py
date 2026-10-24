@@ -69,6 +69,15 @@ class UsageLedger:
         }
 
 
+def _has_answer(data: dict[str, Any]) -> bool:
+    """Reasoning models sometimes spend the whole reply on hidden reasoning and
+    return empty content; don't cache that, so a re-run asks again."""
+    try:
+        return bool((data["choices"][0]["message"].get("content") or "").strip())
+    except (KeyError, IndexError, TypeError, AttributeError):
+        return False
+
+
 def image_part(b64_jpeg: str) -> dict[str, Any]:
     return {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_jpeg}"}}
 
@@ -127,7 +136,7 @@ class TokenFactoryClient:
             self._raise_for(resp)
             return resp.json()
 
-        data, hit = self.cache.get_or_call("chat", payload, call)
+        data, hit = self.cache.get_or_call("chat", payload, call, keep=_has_answer)
         text = data["choices"][0]["message"].get("content") or ""
         result = ChatResult(text=text, model=model, usage=data.get("usage") or {}, cached=hit)
         self.ledger.record(result, task)

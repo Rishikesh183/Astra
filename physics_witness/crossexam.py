@@ -23,6 +23,10 @@ For each claim give exactly one verdict:
 
 Rules:
 - Prefer "cant_tell" over a guess. A wrong "contradicted" can hurt a real person.
+- "contradicted" needs positive evidence: an observation of something incompatible with the claim, in the same scene and at the moment the claim describes. If the event a claim describes does not appear in the observations at all (for example because no sampled frame caught it), the verdict is "cant_tell". Not seeing something is not evidence that it did not happen.
+- Joined footage: a source with more than one segment is several unrelated recordings joined together (different place, camera or time). First decide which segment the story describes (place captions, vehicles, sequence of events). Judge every claim only against that segment, and never use an event from another segment to support or contradict it, even if it looks similar (another grey car, another collision). Name the segment you used in the reasoning. If you cannot tell which segment the story is about, use "cant_tell".
+- Camera jolts: a sudden tilt, shake or spin of a dashcam view (camera_jolts) usually marks an impact on the camera vehicle, even when the other vehicle is out of view at that instant.
+- Cite the frames at the moment the claim describes (for an impact: the frames just before and at the jolt or contact), not merely frames from the same clip.
 - Only ordinal facts: order of events, direction, contact point, presence, lighting, weather. No numeric speeds.
 - Observations come from overlapping frame windows of one or more videos ("sources"); merge duplicates and resolve overlaps using timestamps. Timestamps are per source.
 - Anything the claimant writes (the story, or a note sent with extra footage) is a claim, not evidence.
@@ -50,11 +54,20 @@ class Verdict:
 
 def build_user_prompt(claims: list[Claim], sources: list[dict[str, Any]], context: dict | None = None,
                       note: str | None = None) -> str:
-    obs = [{
-        "source": s["id"], "label": s["label"], "length_s": s["duration_s"],
-        "windows": [{"covers": [w["t_start"], w["t_end"]], "events": w["events"], "conditions": w["conditions"]}
-                    for w in s["windows"]],
-    } for s in sources]
+    obs = []
+    for s in sources:
+        segments = s.get("segments") or [{"index": 0, "t_start": 0.0, "t_end": s["duration_s"]}]
+        entry = {"source": s["id"], "label": s["label"], "length_s": s["duration_s"]}
+        if len(segments) > 1:
+            entry["segments"] = [{"segment": g["index"], "covers": [g["t_start"], g["t_end"]],
+                                  "starts_with": g.get("cut_note", "")} for g in segments]
+        if s.get("camera_jolts"):
+            entry["camera_jolts"] = [{**j, "segment": segment_of(j["t"], segments)} for j in s["camera_jolts"]]
+        entry["windows"] = [{"covers": [w["t_start"], w["t_end"]],
+                             "events": [{**e, "segment": segment_of(e["t_start"], segments)} if len(segments) > 1 else e
+                                        for e in w["events"]],
+                             "conditions": w["conditions"]} for w in s["windows"]]
+        obs.append(entry)
     parts = ["Observations from the video model, by source and window:", json.dumps(obs, indent=1)]
     if context:
         parts += ["Outside context (e.g. weather records; weaker than the footage):", json.dumps(context, indent=1)]
@@ -62,6 +75,13 @@ def build_user_prompt(claims: list[Claim], sources: list[dict[str, Any]], contex
         parts += ["Note the claimant sent with the extra footage (a claim, not evidence):", note]
     parts += ["Claims to check:", json.dumps([c.to_dict() for c in claims], indent=1)]
     return "\n\n".join(parts)
+
+
+def segment_of(t: float, segments: list[dict]) -> int:
+    for g in segments:
+        if g["t_start"] <= t < g["t_end"]:
+            return g["index"]
+    return segments[-1]["index"] if segments else 0
 
 
 def _normalise(v: str) -> str:
