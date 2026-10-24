@@ -1,0 +1,42 @@
+{
+  "_note": "Sample claims shown under 'No video? Try a sample'. `video` is relative to this file. Stories only state what the footage clearly shows, so the verdicts are clean. Check with: physics-witness samples. Running a sample once caches its model replies, so later runs are instant and free.",
+  "samples": [
+    {
+      "id": "crossing-true",
+      "title": "Level crossing: train hits the car ahead",
+      "label": "real",
+      "video": "../short_test_video.webm",
+      "story": "I was stopped in my car before the railway crossing. The car ahead of me was on the crossing. A train came from the right. The train hit the car ahead of me and pushed it to the left. It was a clear, sunny day.",
+      "place": "Ufa, Bashkortostan, Russia",
+      "date": "2017-09-19",
+      "license": "unverified: broadcast footage (Rossiya 1 logo); check before public use",
+      "source_url": "",
+      "description": "Dashcam in a stopped car. Every sentence matches the footage."
+    },
+    {
+      "id": "crossing-liar",
+      "title": "Level crossing: the train came from the other side?",
+      "label": "liar",
+      "video": "../short_test_video.webm",
+      "story": "I was stopped in my car before the railway crossing. The car ahead of me was on the crossing. A train came from the left. The train hit the car ahead of me and pushed it to the left. It was a clear, sunny day.",
+      "lie_sentence": "A train came from the left.",
+      "place": "Ufa, Bashkortostan, Russia",
+      "date": "2017-09-19",
+      "license": "unverified: broadcast footage (Rossiya 1 logo); check before public use",
+      "source_url": "",
+      "description": "Same footage, one detail changed: the claimant says the train came from the left."
+    },
+    {
+      "id": "intersection-true",
+      "title": "Intersection: a grey car crosses my path",
+      "label": "real",
+      "video": "videos/dallas.mp4",
+      "story": "I was driving straight through the intersection on a sunny afternoon. A grey car crossed in front of my car from my left to my right. The front of my car hit the side of the grey car. The crash knocked my dashcam so it pointed at the sky.",
+      "place": "Dallas, Texas",
+      "date": "",
+      "license": "unverified: from a dashcam compilation; local file only, do not commit or host publicly",
+      "source_url": "",
+      "description": "Dashcam in the car that was hit. The impact knocks the camera to point at the sky."
+    }
+  ]
+}

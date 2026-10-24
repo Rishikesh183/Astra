@@ -36,6 +36,7 @@ class Settings:
     super_model: str = ""
     policy: str = "quality"
     prices_file: Path = field(default_factory=lambda: Path("pricing.json"))
+    samples_file: Path = field(default_factory=lambda: Path("demo/samples.json"))
     tavily_api_key: str = ""
     offline: bool = False
     cache_dir: Path = field(default_factory=lambda: Path(".cache/responses"))
@@ -54,6 +55,7 @@ class Settings:
             super_model=env("PW_SUPER_MODEL", ""),
             policy=(env("PW_POLICY", "") or "quality").strip().lower(),
             prices_file=Path(env("PW_PRICES_FILE", "") or "pricing.json"),
+            samples_file=Path(env("PW_SAMPLES", "") or "demo/samples.json"),
             tavily_api_key=env("TAVILY_API_KEY", ""),
             offline=_flag("PW_OFFLINE"),
             cache_dir=Path(env("PW_CACHE_DIR", "") or ".cache/responses"),

@@ -116,15 +116,22 @@ class RunStore:
         for d in self.root.iterdir():
             if RUN_ID.match(d.name) and (d / "meta.json").is_file():
                 try:
-                    out.append(json.loads((d / "meta.json").read_text(encoding="utf-8")))
+                    meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
                 except json.JSONDecodeError:
                     continue
+                if meta.get("status") == "done" and "thumb" not in meta and (d / "report.json").is_file():
+                    try:   # claims made before the home page existed
+                        report = json.loads((d / "report.json").read_text(encoding="utf-8"))
+                        meta = self._write_meta(d.name, **self.card_fields(report))
+                    except (json.JSONDecodeError, KeyError, TypeError):
+                        pass
+                out.append(meta)
         return sorted(out, key=lambda m: m.get("created", 0), reverse=True)
 
     # --- runs ---------------------------------------------------------------
 
     def create(self, video_src: Path, story: str, *, title: str = "", place: str = "", date: str = "",
-               move: bool = False, wait: bool = False) -> str:
+               move: bool = False, wait: bool = False, sample: dict[str, str] | None = None) -> str:
         suffix = Path(video_src).suffix.lower()
         if suffix not in VIDEO_EXTS:
             raise ValueError(f"unsupported video type {suffix!r}; use one of {sorted(VIDEO_EXTS)}")
@@ -138,12 +145,30 @@ class RunStore:
         (d / "story.txt").write_text(story, encoding="utf-8")
         self._write_meta(run_id, id=run_id, title=title.strip() or story.strip().split("\n")[0][:80],
                          place=place.strip(), date=date.strip(), status="queued",
-                         created=time.time(), error=None, summary=None)
+                         created=time.time(), error=None, summary=None, sample=sample)
         self._cancel[run_id] = threading.Event()
         future = self._pool.submit(self._execute, run_id)
         if wait:
             future.result()
         return run_id
+
+    @staticmethod
+    def card_fields(report: dict[str, Any]) -> dict[str, Any]:
+        """What the home page shows for a claim, kept in meta.json so listing
+        claims never has to open every report."""
+        sources = report.get("sources") or []
+        frames = report.get("frames") or []
+        cost = report.get("cost") or {}
+        return {
+            "thumb": frames[min(1, len(frames) - 1)]["file"] if frames else None,
+            "duration_s": report.get("duration_s"),
+            "claims": len(report.get("claims") or []),
+            "story": (report.get("story") or "")[:220],
+            "tokens": cost.get("tokens"),
+            "usd": cost.get("total_usd") if cost.get("priced") else None,
+            "joined": any(len(s.get("segments") or []) > 1 for s in sources),
+            "extra_clips": max(0, len(sources) - 1),
+        }
 
     def _progress(self, run_id: str) -> Callable[[dict[str, Any]], None]:
         return lambda p: self._write_meta(run_id, progress=p)
@@ -159,7 +184,7 @@ class RunStore:
                                   place=meta.get("place") or None, date=meta.get("date") or None, cancel=cancel)
             self._write_meta(run_id, status="done", finished=time.time(), summary=report.get("summary"),
                              mode=report.get("mode"), rounds=len(report.get("rounds", [])),
-                             cost=report.get("cost"), cancelling=False)
+                             cost=report.get("cost"), cancelling=False, **self.card_fields(report))
         except Cancelled:
             (d / "report.json").unlink(missing_ok=True)
             self._write_meta(run_id, status="cancelled", finished=time.time(), progress=None, error=None, cancelling=False)
@@ -202,7 +227,7 @@ class RunStore:
                                     cancel=cancel)
             self._write_meta(run_id, status="done", finished=time.time(), summary=report.get("summary"),
                              mode=report.get("mode"), rounds=len(report.get("rounds", [])),
-                             cost=report.get("cost"), stage_kind=None, cancelling=False)
+                             cost=report.get("cost"), stage_kind=None, cancelling=False, **self.card_fields(report))
         except Cancelled:
             # The saved report was never touched; just drop the clip.
             self.video_path(run_id, sid).unlink(missing_ok=True)
