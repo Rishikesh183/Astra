@@ -12,17 +12,22 @@ from .jsonutil import extract_json
 COSMOS_PROMPT = """These {n} frames are in time order from one camera. Each frame has its timestamp printed in the black band at the bottom ({labels}).
 
 Describe what physically happens, as an accident investigator would. Report only what the frames show:
-- which road users or objects are present and where they are,
+- the camera itself: is it a dashcam looking out through a vehicle's windscreen, a fixed CCTV camera, or handheld? If it is in a vehicle, is that vehicle stationary or moving, and in which direction?
+- which road users or objects are present and where they are relative to the camera (ahead of it, to its left or right, behind other objects),
 - who moves, in which direction (left/right/toward/away from the camera), and in what order,
 - any contact, and where on each object it happens,
 - lighting (day/dusk/night) and weather or road surface (dry/wet/rain/snow),
 - whether the view is clear, partly blocked, or too blurry to tell.
 
-Use the printed timestamps. Do not guess speeds in numbers. If something cannot be seen, say so instead of guessing.
+Also copy any on-screen text exactly as written, such as a dashcam date, clock time, GPS position or speed readout, or a TV caption. Text in a non-Latin script can be copied as is.
+
+Use the printed timestamps at the bottom of each frame for event times; on-screen clocks are only for the camera_overlay field. Do not guess speeds in numbers. If something cannot be seen, say so instead of guessing.
 
 Return only JSON:
 {{"events": [{{"t_start": 0.0, "t_end": 0.0, "what": "...", "actors": ["..."], "visibility": "clear|partial|poor"}}],
-  "conditions": {{"lighting": "...", "weather": "...", "road_surface": "...", "view": "clear|partial|poor"}}}}"""
+  "conditions": {{"lighting": "...", "weather": "...", "road_surface": "...", "view": "clear|partial|poor",
+                  "camera": "dashcam|cctv|handheld|unknown", "camera_motion": "stationary|moving|unknown",
+                  "camera_overlay": "on-screen text, or empty"}}}}"""
 
 
 @dataclass
