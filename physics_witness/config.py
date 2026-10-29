@@ -22,6 +22,19 @@ def _load_dotenv(path: Path = Path(".env")) -> None:
         os.environ.setdefault(key.strip(), value)
 
 
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _samples_file(configured: str) -> Path:
+    """PW_SAMPLES if set; otherwise demo/samples.json in the current folder,
+    falling back to the one next to the package (a checkout started elsewhere)."""
+    if configured:
+        return Path(configured)
+    local = Path("demo/samples.json")
+    bundled = PACKAGE_ROOT / "demo" / "samples.json"
+    return local if local.is_file() or not bundled.is_file() else bundled
+
+
 def _flag(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes"}
 
@@ -55,7 +68,7 @@ class Settings:
             super_model=env("PW_SUPER_MODEL", ""),
             policy=(env("PW_POLICY", "") or "quality").strip().lower(),
             prices_file=Path(env("PW_PRICES_FILE", "") or "pricing.json"),
-            samples_file=Path(env("PW_SAMPLES", "") or "demo/samples.json"),
+            samples_file=_samples_file(env("PW_SAMPLES", "")),
             tavily_api_key=env("TAVILY_API_KEY", ""),
             offline=_flag("PW_OFFLINE"),
             cache_dir=Path(env("PW_CACHE_DIR", "") or ".cache/responses"),

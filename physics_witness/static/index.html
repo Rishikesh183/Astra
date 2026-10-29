@@ -44,6 +44,7 @@
     }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }   /* .btn sets display, which would otherwise override the hidden attribute */
   html { -webkit-text-size-adjust: 100%; }
   body {
     margin: 0; color: var(--ink); min-height: 100vh;
@@ -305,6 +306,8 @@
   .scard.liar blockquote { border-left-color: var(--bad-lamp); }
   mark { background: var(--bad-bg); color: var(--bad); border-bottom: 2px solid var(--bad-lamp); padding: 0 2px; border-radius: 3px; }
   .lie-note { color: var(--bad); margin: 0; font-weight: 600; }
+  .samples-problem { grid-column: 1 / -1; }
+  .samples-problem .banner { margin: 0; }
   .sfoot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 4px; }
   .sfoot .muted { flex: 1; min-width: 0; }
   .banner.sample.real { background: var(--ok-bg); color: var(--ink); border-color: var(--ok-line); }
@@ -659,10 +662,24 @@ async function showHome() {
 async function openSamples() {
   const grid = $("#samples-grid");
   $("#samples-dlg").showModal();
-  let samples = state.samples;
-  try { if (!samples) samples = state.samples = await api("/api/samples"); }
-  catch (err) { grid.replaceChildren(h("p", { class: "err" }, `Could not load samples: ${err.message}`)); return; }
+  grid.replaceChildren(h("span", { class: "spinner" }));
+  let samples;
+  try { samples = state.samples = await api("/api/samples"); }    // always fresh: the file may have changed
+  catch (err) {
+    grid.replaceChildren(samplesProblem(err.message === "Not Found"
+      ? "The server doesn't know about samples yet. It is probably still running code from before your last update: stop it (Ctrl+C) and start it again, then refresh this page."
+      : `Could not load the samples: ${err.message}`));
+    return;
+  }
+  if (!samples.length) {
+    grid.replaceChildren(samplesProblem("No samples are set up. The server reads demo/samples.json (or the file named in PW_SAMPLES). Run `physics-witness samples` to check it."));
+    return;
+  }
   grid.replaceChildren(...samples.map(sampleCard));
+}
+
+function samplesProblem(text) {
+  return h("div", { class: "samples-problem" }, h("div", { class: "banner" }, h("span", {}, text)));
 }
 
 function storyWithLie(sample) {
