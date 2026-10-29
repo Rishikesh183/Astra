@@ -1,24 +1,55 @@
 # Physics Witness
 
-**License: [Apache 2.0](LICENSE)**
+Physics Witness checks a claimant's accident story against the video footage, sentence by sentence, and points to the exact seconds that back up each answer.
 
-Physics Witness checks a claimant's story against what the video physically shows, and points to the exact seconds where they disagree.
+## What it is
 
-> Insurers get thousands of claims with a video and a story. Physics Witness reads the video like an accident investigator and tells you which parts of the story the footage supports, contradicts, or can't settle.
+You give it two things: a **video** of the incident (dashcam, CCTV, phone) and the **claimant's written story** ("I was stopped at the light. The other car hit my rear bumper."). It splits the story into short, checkable statements and gives each one a verdict:
 
-The output is evidence for a human adjuster, **never a fraud verdict**. Every claim gets one of three verdicts (Supported, Contradicted, Can't tell), and the tool abstains when the footage can't settle the claim.
+- **Supported**: the footage shows it.
+- **Contradicted**: the footage clearly shows something else, for example the train comes from the right, not the left.
+- **Can't tell**: the footage doesn't settle it, because the camera points the wrong way, the moment is cut off, or it's too dark. The tool then writes the claimant one specific request, such as "the rear camera angle" or "the 10 seconds after the impact", and re-judges when that footage arrives.
 
-Built for the Nebius x NVIDIA Global AI Hackathon (deadline Oct 30, 2026).
+Every verdict comes with its reasoning and the evidence frames, each one stamped with its time in the video. Clicking one jumps the video to that moment, so a person can check it in seconds.
 
-## Status: Phase 4 (Liar Test tooling)
+The output is evidence for a human, **never a fraud verdict**. When the footage can't settle a statement, the tool says so rather than guess.
+
+## Why it exists
+
+Insurers, fleet operators and claims teams receive more and more claims with video attached. Dashcams are cheap, and every street has a camera. Someone still has to watch each clip and compare it with what the claimant wrote. That's slow, it's tedious, and small mismatches are easy to miss: which side the other car came from, who moved first, whether the light was red, whether it was raining.
+
+Plain video AI can describe a clip ("a car crash on a road"), but describing a clip is not checking a story. Physics Witness asks the vision model only for what physically happened and when (who moved, from which side, the impact, the camera being knocked). A separate reasoning model then cross-examines each statement against those timed observations. It needs positive evidence before it calls a statement Contradicted.
+
+## How it helps in real life
+
+| Who | How they use it |
+|---|---|
+| **Insurance claims adjusters** | Triage incoming video claims. Clean claims (all Supported) can move fast. A claim with a Contradicted statement goes to a person, with the exact seconds to watch instead of the whole clip. |
+| **Fraud / special investigation teams** | A starting point, not a conclusion. The mismatch is shown frame by frame, so the investigator decides, and the claimant gets a fair chance to explain or send more footage. |
+| **Fleet and logistics operators** | Check a driver's incident report against the truck's dashcam before the insurer or the other party does. |
+| **Claimants and their lawyers** | Show that the footage backs the story. "Supported, see 00:03.4" is easier to argue than "watch this video". |
+| **Police, rental and ride-share companies** | The same check for incident reports that come with video. |
+
+What changes in practice:
+- **Time:** a reviewer reads a one-screen report and watches only the flagged seconds.
+- **Consistency:** every claim is checked the same way, statement by statement, with reasons written down.
+- **Fairness:** "Can't tell" is a first-class answer. Missing footage leads to a request for more evidence, not a guess against the claimant.
+- **Audit trail:** every verdict keeps its reasoning, evidence frames, the models used and the cost of the run.
+
+Example, from the bundled sample: a level-crossing dashcam clip, with the story "...A train came from the left...". The footage shows the train arriving from the right. That one sentence should come back **Contradicted**, with the frames that show it. The rest come back **Supported**, or **Can't tell** where the clip doesn't show the detail, such as the weather.
+
+Built for the Nebius x NVIDIA Global AI Hackathon (Physical AI track, deadline Oct 30, 2026). **License: [Apache 2.0](LICENSE)**
+
+## Status
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | Kill-switch checks, frame sampling with burned timestamps, Token Factory + Tavily clients, response cache, core pipeline (claims -> Cosmos events -> Ultra verdicts), CLI, smoke tests | done |
-| 2 | Evidence frames and Cosmos observations per verdict, Tavily weather/place context, one-screen web UI | done |
+| 1 | Checks that the models and services are reachable, frame sampling with burned-in timestamps, Token Factory + Tavily clients, response cache, core pipeline, CLI, smoke tests | done |
+| 2 | Evidence frames and observations per verdict, weather/place context, web UI | done |
 | 3 | Act loop (Can't tell -> ask for evidence -> re-judge), model routing, live cost meter | done |
-| 4 | Liar Test tooling: case file, validation, altered-story drafts, batch runner, catch / false-alarm / abstain rates with 95% intervals, HTML report | **this branch** (needs real clips + keys for the numbers) |
-| 5 | Hosted demo on Nebius Serverless, submission | planned |
+| 4 | Liar Test tooling: case file, batch runner, catch / false-alarm / abstain rates with 95% intervals, HTML report | done |
+| + | Scene-cut segments, cancel/delete, home page of past claims, sample claims, Supabase storage, 40 MB upload cap | done |
+| 5 | Hosted demo on Nebius, submission | in progress |
 
 See [docs/PHASES.md](docs/PHASES.md) for details.
 
@@ -55,7 +86,7 @@ Set the policy with `PW_POLICY=quality|budget`. Before Cosmos, a cheap pixel fil
 
 Every call is logged by task and model. The UI shows a live cost meter while a claim runs, and the total cost for the claim (all rounds) when it's done. Tokens served from the cache count as saved. Prices are **not** hard-coded: copy `pricing.example.json` to `pricing.json` and fill in USD per 1M tokens from the [Token Factory price page](https://tokenfactory.nebius.com/organization/prices). Without it, the meter shows exact token counts and "price not set".
 
-Every model response is cached on disk (`.cache/responses`), so re-runs and recorded demos cost nothing.
+Every model response is cached on disk (`.cache/responses`), and also in Supabase when `PW_STORE=supabase`, so re-runs and recorded demos cost nothing.
 
 ## Quick start
 
@@ -152,14 +183,17 @@ Full instructions, including where videos go and how to write good pairs, are in
 | `PW_PRICES_FILE` | Prices for the cost meter (default `pricing.json`) |
 | `PW_OFFLINE` | `1` = never call the network |
 | `PW_CACHE_DIR` | Response cache directory |
+| `PW_STORE` | `files` (default) or `supabase` |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_BUCKET` | Supabase project, service_role key and bucket (see [Storage](#storage-local-files-or-supabase)) |
 
 ## NVIDIA models and Nebius services used
 
-- **NVIDIA Cosmos reasoner (on Nebius Token Factory)**: reads windows of timestamped frames and reports physical events.
+- **Vision model on Token Factory** (`PW_COSMOS_MODEL`): reads windows of timestamped frames and reports physical events. The pipeline is built for NVIDIA Cosmos. Where Cosmos isn't enabled on the account, NVIDIA Nemotron 3.5 Super VL fills the same role.
 - **NVIDIA Nemotron Ultra (on Token Factory)**: cross-examines each claim against the merged observations.
 - **NVIDIA Nemotron Nano / Super (on Token Factory)**: splits the story into claims and writes the evidence request to the claimant. Under the budget policy, Super also does the cross-examination.
 - **Nebius Token Factory**: all model calls go through its OpenAI-compatible API. 402/403 responses are reported as credit or access problems.
-- **Nebius Sandboxes / Serverless Jobs / Serverless Endpoints**: planned for frame extraction, Liar Test batches and hosting (phases 2-5).
+- **Nebius Serverless**: planned for hosting the demo (phase 5).
+- **Supabase** (optional): Postgres + Storage for claims, videos and the shared model cache on a hosted deployment.
 - **Tavily**: weather on the claim date and facts about the place, passed to Ultra as outside context (at runtime, whenever a claim has a place).
 
 ## What it does not claim
