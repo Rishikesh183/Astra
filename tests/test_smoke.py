@@ -197,6 +197,23 @@ def test_tavily_request_shape(tmp_path):
     assert TavilyClient(Settings(cache_dir=tmp_path)).search("x")["offline"] is True
 
 
+def test_tavily_falls_back_to_second_key(tmp_path):
+    used = []
+
+    def handler(request):
+        used.append(request.headers["authorization"])
+        if request.headers["authorization"] == "Bearer tvly-main":
+            return httpx.Response(432, text="plan limit exceeded")
+        return httpx.Response(200, json={"answer": "sunny", "results": []})
+
+    s = Settings(tavily_api_key="tvly-main", tavily_fallback_key="tvly-spare", cache_dir=tmp_path)
+    t = TavilyClient(s, transport=httpx.MockTransport(handler))
+    assert t.search("q")["answer"] == "sunny"
+    assert used == ["Bearer tvly-main", "Bearer tvly-spare"]
+    only_spare = TavilyClient(Settings(tavily_fallback_key="tvly-spare", cache_dir=tmp_path))
+    assert only_spare.offline is False
+
+
 # --- CLI --------------------------------------------------------------------
 
 def test_cli_run_and_frames_and_checks_offline(clip, tmp_path, capsys, monkeypatch):

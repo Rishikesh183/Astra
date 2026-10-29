@@ -179,6 +179,7 @@ Full instructions, including where videos go and how to write good pairs, are in
 | `NEBIUS_BASE_URL` | Token Factory OpenAI-compatible base URL (default `https://api.tokenfactory.nebius.com/v1`) |
 | `PW_COSMOS_MODEL`, `PW_ULTRA_MODEL`, `PW_SPLITTER_MODEL` | Model IDs. Leave empty to auto-discover from `/models` |
 | `TAVILY_API_KEY` | Tavily search |
+| `TAVILY_API_KEY_FALLBACK` | Second Tavily key, used when the first is out of credit or rejected |
 | `PW_POLICY` | `quality` (Ultra judges) or `budget` (Super judges) |
 | `PW_PRICES_FILE` | Prices for the cost meter (default `pricing.json`) |
 | `PW_OFFLINE` | `1` = never call the network |

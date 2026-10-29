@@ -55,6 +55,7 @@ class Settings:
     supabase_key: str = ""               # the service_role key (server side only)
     supabase_bucket: str = "claims"
     tavily_api_key: str = ""
+    tavily_fallback_key: str = ""         # used when the main key is out of credit
     offline: bool = False
     cache_dir: Path = field(default_factory=lambda: Path(".cache/responses"))
     request_timeout: float = 120.0
@@ -78,6 +79,7 @@ class Settings:
             supabase_key=env("SUPABASE_SERVICE_KEY", ""),
             supabase_bucket=env("SUPABASE_BUCKET", "") or "claims",
             tavily_api_key=env("TAVILY_API_KEY", ""),
+            tavily_fallback_key=env("TAVILY_API_KEY_FALLBACK", ""),
             offline=_flag("PW_OFFLINE"),
             cache_dir=Path(env("PW_CACHE_DIR", "") or ".cache/responses"),
         )

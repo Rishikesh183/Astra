@@ -78,7 +78,7 @@ def create_app(data_dir: Path = Path("data/claims"), settings: Settings | None =
     def health():
         s = store.settings
         return {"ok": True, "nebius": bool(s.nebius_api_key) and not s.offline,
-                "tavily": bool(s.tavily_api_key) and not s.offline, "store": store.backend.kind}
+                "tavily": bool(s.tavily_api_key or s.tavily_fallback_key) and not s.offline, "store": store.backend.kind}
 
     @app.get("/api/claims")
     def list_claims():

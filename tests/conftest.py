@@ -16,7 +16,7 @@ def clip(tmp_path_factory) -> Path:
 
 @pytest.fixture(autouse=True)
 def _isolate_env(monkeypatch, tmp_path):
-    for k in ("NEBIUS_API_KEY", "TAVILY_API_KEY", "PW_COSMOS_MODEL", "PW_ULTRA_MODEL",
+    for k in ("NEBIUS_API_KEY", "TAVILY_API_KEY", "TAVILY_API_KEY_FALLBACK", "PW_COSMOS_MODEL", "PW_ULTRA_MODEL",
               "PW_SPLITTER_MODEL", "PW_SUPER_MODEL", "PW_OFFLINE", "NEBIUS_BASE_URL", "PW_POLICY",
               "PW_PRICES_FILE", "PW_CACHE_DIR", "PW_STORE", "SUPABASE_URL", "SUPABASE_SERVICE_KEY",
               "SUPABASE_BUCKET", "PW_SAMPLES"):
