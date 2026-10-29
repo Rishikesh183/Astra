@@ -50,6 +50,10 @@ class Settings:
     policy: str = "quality"
     prices_file: Path = field(default_factory=lambda: Path("pricing.json"))
     samples_file: Path = field(default_factory=lambda: Path("demo/samples.json"))
+    store: str = "files"                 # files | supabase
+    supabase_url: str = ""
+    supabase_key: str = ""               # the service_role key (server side only)
+    supabase_bucket: str = "claims"
     tavily_api_key: str = ""
     offline: bool = False
     cache_dir: Path = field(default_factory=lambda: Path(".cache/responses"))
@@ -69,6 +73,10 @@ class Settings:
             policy=(env("PW_POLICY", "") or "quality").strip().lower(),
             prices_file=Path(env("PW_PRICES_FILE", "") or "pricing.json"),
             samples_file=_samples_file(env("PW_SAMPLES", "")),
+            store=(env("PW_STORE", "") or "files").strip().lower(),
+            supabase_url=env("SUPABASE_URL", ""),
+            supabase_key=env("SUPABASE_SERVICE_KEY", ""),
+            supabase_bucket=env("SUPABASE_BUCKET", "") or "claims",
             tavily_api_key=env("TAVILY_API_KEY", ""),
             offline=_flag("PW_OFFLINE"),
             cache_dir=Path(env("PW_CACHE_DIR", "") or ".cache/responses"),

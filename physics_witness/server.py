@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 
 from .config import Settings
 from .samples import load_samples
@@ -77,7 +77,7 @@ def create_app(data_dir: Path = Path("data/claims"), settings: Settings | None =
     def health():
         s = store.settings
         return {"ok": True, "nebius": bool(s.nebius_api_key) and not s.offline,
-                "tavily": bool(s.tavily_api_key) and not s.offline}
+                "tavily": bool(s.tavily_api_key) and not s.offline, "store": store.backend.kind}
 
     @app.get("/api/claims")
     def list_claims():
@@ -140,10 +140,22 @@ def create_app(data_dir: Path = Path("data/claims"), settings: Settings | None =
 
     @app.get("/api/claims/{run_id}/video")
     def get_video(run_id: str, source: str = Query("main")):
-        return FileResponse(_get(store.video_path, run_id, source))
+        try:
+            return FileResponse(store.video_path(run_id, source))
+        except KeyError:
+            url = _get(store.video_url, run_id, source)      # kept in the shared store
+            if not url:
+                raise HTTPException(404, "not found") from None
+            return RedirectResponse(url, status_code=307)
 
     @app.get("/api/claims/{run_id}/frames/{name}")
     def get_frame(run_id: str, name: str):
-        return FileResponse(_get(store.frame_path, run_id, name), media_type="image/jpeg")
+        try:
+            return FileResponse(store.frame_path(run_id, name), media_type="image/jpeg")
+        except KeyError:
+            url = _get(store.frame_url, run_id, name)
+            if not url:
+                raise HTTPException(404, "not found") from None
+            return RedirectResponse(url, status_code=307)
 
     return app

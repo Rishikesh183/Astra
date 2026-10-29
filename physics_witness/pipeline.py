@@ -12,7 +12,7 @@ from typing import Any, Callable
 
 from . import act, costs, evidence, models, routing
 from . import context as ctx
-from .cache import ResponseCache
+from .cache import ResponseCache, make_cache
 from .claims import Claim, split_claims
 from .clients.tavily import TavilyClient
 from .clients.token_factory import TokenFactoryClient, UsageLedger
@@ -107,7 +107,7 @@ def _summary(verdicts: list[dict[str, Any]]) -> dict[str, int]:
 
 def _setup(settings: Settings | None, client: TokenFactoryClient | None, policy: str | None):
     settings = settings or Settings.from_env()
-    cache = ResponseCache(settings.cache_dir)
+    cache = make_cache(settings)
     client = client or TokenFactoryClient(settings, cache, UsageLedger())
     names = models.resolve(client)
     policy = policy or settings.policy

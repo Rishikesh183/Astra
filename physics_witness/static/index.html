@@ -440,6 +440,7 @@
   <span class="spacer"></span>
   <span id="svc-nebius" class="pill">Token Factory</span>
   <span id="svc-tavily" class="pill">Tavily</span>
+  <span id="svc-store" class="pill" hidden>Storage</span>
   <button class="btn ghost" id="try-sample" type="button" hidden>No video? Try a sample</button>
   <button class="btn primary" id="new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New claim</button>
 </header>
@@ -522,6 +523,10 @@ async function loadHealth() {
     $("#svc-nebius").textContent = s.nebius ? "Token Factory: live" : "Token Factory: offline";
     $("#svc-tavily").classList.toggle("on", s.tavily);
     $("#svc-tavily").textContent = s.tavily ? "Tavily: live" : "Tavily: offline";
+    const store = $("#svc-store");
+    store.hidden = !s.store;
+    store.classList.add("on");                          // either store works; this pill only says which
+    store.textContent = s.store === "supabase" ? "Storage: Supabase" : "Storage: local files";
   } catch {}
 }
 

@@ -130,7 +130,7 @@ def test_web_app_upload_poll_and_serve(clip, tmp_path):
     with TestClient(create_app(store=store)) as http:
         page = http.get("/")
         assert page.status_code == 200 and "Physics Witness" in page.text
-        assert http.get("/api/health").json() == {"ok": True, "nebius": False, "tavily": False}
+        assert http.get("/api/health").json() == {"ok": True, "nebius": False, "tavily": False, "store": "files"}
         assert http.get("/api/claims").json() == []
 
         with open(clip, "rb") as fh:
