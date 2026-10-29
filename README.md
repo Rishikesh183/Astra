@@ -94,6 +94,18 @@ Tests (no network or keys needed; the live code path is exercised through a mock
 pytest
 ```
 
+## Sample claims ("No video? Try a sample")
+
+The home page lists every claim as a card (thumbnail, verdict counts, length, cost), and each claim has its own link, `/claims/<id>`. For visitors without footage, **No video? Try a sample** opens ready-made claims: real dashcam clips with a true story or a story with one lie in it (highlighted).
+
+Samples are data, not code: edit `demo/samples.json` (or point `PW_SAMPLES` at another file). Each entry has an `id`, `title`, `label` (`real` or `liar`), `video` (relative to the file), `story`, and for liar stories the exact `lie_sentence`. Videos that aren't committed (e.g. `demo/videos/`, git-ignored) show as "not added yet" until the file is there. Check the file with:
+
+```bash
+physics-witness samples
+```
+
+Only state what the footage clearly shows in sample stories. Running a sample once caches its model replies, so later runs are instant and free.
+
 ## Liar Test
 
 Every clip runs twice: once with the claimant's true story and once with one physical detail changed (direction, order, time of day, weather, contact point, presence). The report shows how often the altered sentence is caught, how often true stories are wrongly flagged, and how often the tool abstains, each with a 95% interval.

@@ -24,14 +24,19 @@ class ResponseCache:
         blob = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()
         return hashlib.sha256(blob).hexdigest()
 
-    def get_or_call(self, namespace: str, payload: Any, call: Callable[[], Any]) -> tuple[Any, bool]:
-        """Return (value, cache_hit)."""
+    def get_or_call(self, namespace: str, payload: Any, call: Callable[[], Any],
+                    keep: Callable[[Any], bool] | None = None) -> tuple[Any, bool]:
+        """Return (value, cache_hit). Values `keep` rejects are returned but not
+        stored, so a bad reply (e.g. an empty one) is retried next time instead
+        of being replayed from the cache forever."""
         if not self.enabled:
             return call(), False
         path = self._path(namespace, self.key_for(payload))
         if path.is_file():
             return json.loads(path.read_text(encoding="utf-8")), True
         value = call()
+        if keep is not None and not keep(value):
+            return value, False
         path.parent.mkdir(parents=True, exist_ok=True)
         # Write-then-rename so parallel runs (Liar Test workers) never read a half-written file.
         tmp = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")

@@ -12,3 +12,5 @@ liartest/clips/*
 !liartest/clips/.gitkeep
 liartest/results/
 liartest/*.bak
+demo/videos/*
+!demo/videos/.gitkeep

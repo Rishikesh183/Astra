@@ -13,12 +13,21 @@ def _find(models: list[str], *must: str, any_of: tuple[str, ...] = ()) -> str:
     return ""
 
 
+def _is_vision(model: str) -> bool:
+    low = model.lower()
+    return "cosmos" in low or "vision" in low or "-vl" in low or "_vl" in low or "vl-" in low
+
+
 def discover(models: list[str]) -> dict[str, str]:
+    text_models = [m for m in models if not _is_vision(m)]
+    vision = [m for m in models if _is_vision(m)]
     return {
-        "cosmos": _find(models, "cosmos", any_of=("reason",)) or _find(models, "cosmos"),
-        "ultra": _find(models, "nemotron", "ultra"),
-        "splitter": _find(models, "nemotron", "nano") or _find(models, "nemotron", "super"),
-        "super": _find(models, "nemotron", "super"),
+        # Cosmos when the account has it; otherwise any vision-language model (prefer NVIDIA's).
+        "cosmos": (_find(models, "cosmos", any_of=("reason",)) or _find(models, "cosmos")
+                   or _find(vision, "nemotron") or (vision[0] if vision else "")),
+        "ultra": _find(text_models, "nemotron", "ultra"),
+        "splitter": _find(text_models, "nemotron", "nano") or _find(text_models, "nemotron", "super"),
+        "super": _find(text_models, "nemotron", "super"),
     }
 
 

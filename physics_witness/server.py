@@ -11,6 +11,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from .config import Settings
+from .samples import load_samples
 from .store import VIDEO_EXTS, RunStore
 
 STATIC = Path(__file__).parent / "static"
@@ -38,6 +39,39 @@ def create_app(data_dir: Path = Path("data/claims"), settings: Settings | None =
     @app.get("/", include_in_schema=False)
     def index():
         return FileResponse(STATIC / "index.html")
+
+    @app.get("/claims/{run_id}", include_in_schema=False)
+    def claim_page(run_id: str):
+        # The page itself routes on the URL, so a claim link can be bookmarked or refreshed.
+        # Unknown ids still get the app (it shows "Claim not found"), with a 404 status.
+        try:
+            store.dir(run_id)
+        except KeyError:
+            return FileResponse(STATIC / "index.html", status_code=404)
+        return FileResponse(STATIC / "index.html")
+
+    def _samples():
+        return {s.id: s for s in load_samples(store.settings.samples_file)}
+
+    @app.get("/api/samples")
+    def list_samples():
+        return [s.public() for s in _samples().values()]
+
+    @app.get("/api/samples/{sample_id}/video")
+    def sample_video(sample_id: str):
+        s = _samples().get(sample_id)
+        if s is None or not s.available:
+            raise HTTPException(404, "not found")
+        return FileResponse(s.video)
+
+    @app.post("/api/samples/{sample_id}/try", status_code=202)
+    def try_sample(sample_id: str):
+        s = _samples().get(sample_id)
+        if s is None or not s.available:
+            raise HTTPException(404, "sample not available")
+        run_id = store.create(s.video, s.story, title=s.title, place=s.place, date=s.date,
+                              sample={"id": s.id, "label": s.label, "lie_sentence": s.lie_sentence})
+        return JSONResponse({"id": run_id}, status_code=202)
 
     @app.get("/api/health")
     def health():

@@ -1,4 +1,4 @@
-"""Command line: `physics-witness checks|frames|run|add|evidence|liar|trim|serve`."""
+"""Command line: `physics-witness checks|frames|run|add|evidence|liar|trim|samples|serve`."""
 
 from __future__ import annotations
 
@@ -213,6 +213,17 @@ def _cmd_trim(args) -> int:
     return 0
 
 
+def _cmd_samples(args) -> int:
+    from .samples import check_samples, load_samples
+    path = args.file or Settings.from_env().samples_file
+    for s in load_samples(path):
+        print(f"{'ok ' if s.available else '-- '} {s.id:<20} {s.label:<5} {s.title}")
+    problems = check_samples(path)
+    for p in problems:
+        print(f"note  {p}")
+    return 0
+
+
 def _cmd_serve(args) -> int:
     import uvicorn
 
@@ -304,6 +315,10 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--length", default="20", help="how long: seconds or m:ss (default 20)")
     t.add_argument("--out", type=Path, help="output file (always .mp4)")
     t.set_defaults(fn=_cmd_trim)
+
+    sm = sub.add_parser("samples", help="list the sample claims and check the samples file")
+    sm.add_argument("--file", type=Path, help="samples file (default: PW_SAMPLES or demo/samples.json)")
+    sm.set_defaults(fn=_cmd_samples)
 
     w = sub.add_parser("serve", help="start the web app")
     w.add_argument("--data", type=Path, default=Path("data/claims"))

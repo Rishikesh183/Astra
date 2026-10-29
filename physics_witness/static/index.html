@@ -140,6 +140,9 @@
     border: 2.5px solid var(--panel); box-shadow: 0 3px 6px -1px rgba(0, 0, 0, .35); transition: transform .15s; z-index: 2; }
   .mark:hover { transform: translateX(-9px) rotate(-45deg) scale(1.2); }
   .mark.sel { transform: translateX(-9px) rotate(-45deg) scale(1.25); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 35%, transparent), 0 3px 6px -1px rgba(0, 0, 0, .35); }
+  .cut { position: absolute; top: 4px; bottom: 2px; width: 0; border-left: 3px dashed var(--bad-lamp); transform: translateX(-1px); z-index: 1; }
+  .cut::before { content: "CUT"; position: absolute; top: -2px; left: 4px; font: 700 9px/1 var(--mono); color: var(--bad-lamp); letter-spacing: .5px; }
+  .jolt { position: absolute; top: 40px; transform: translateX(-50%); font-size: 13px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.4)); z-index: 1; }
   .playhead { position: absolute; top: 18px; bottom: 6px; width: 3px; background: var(--cone); pointer-events: none; border-radius: 2px; transition: left .1s linear; z-index: 1; }
   .playhead::after { content: ""; position: absolute; left: -5px; bottom: -6px; border: 6.5px solid transparent; border-bottom: 9px solid var(--cone); border-top: 0; }
   .timeinfo { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 12px; padding: 4px 20px 14px; font-variant-numeric: tabular-nums; }
@@ -246,6 +249,69 @@
   .howto p { margin: 0; color: var(--on-asphalt-muted); font-size: 13px; }
   .howto .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
 
+  /* --- home: claim cards ----------------------------------------------------------------- */
+  .navlink { color: var(--on-asphalt); text-decoration: none; font-weight: 600; font-size: 13.5px; padding: 7px 12px; border-radius: 8px;
+    border: 1px solid var(--asphalt-line); background: var(--asphalt-2); }
+  .navlink:hover { border-color: var(--hivis); color: var(--hivis); }
+  .btn.ghost { background: transparent; color: var(--on-asphalt); border-color: var(--asphalt-line); box-shadow: none; }
+  .btn.ghost:hover { border-color: var(--hivis); color: var(--hivis); background: rgba(255, 208, 0, .06); }
+  .hero.compact { padding-top: 40px; }
+  .hero.compact h1 { font-size: clamp(30px, 4.4vw, 48px); }
+  .hero.compact .lead { margin-bottom: 20px; }
+  .hero.compact .cta { margin-bottom: 30px; }
+  .home-claims { max-width: 1240px; margin: 0 auto; padding: 36px 0 8px; text-align: left; }
+  .home-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  .home-head h2 { margin: 0; font-size: 26px; letter-spacing: .6px; text-transform: uppercase; color: var(--on-asphalt); }
+  .home-head .muted { color: var(--on-asphalt-muted); }
+  .cgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .ccard { display: flex; flex-direction: column; background: var(--asphalt-2); border: 1px solid var(--asphalt-line); border-radius: 14px; overflow: hidden;
+    color: var(--on-asphalt); text-decoration: none; transition: transform .15s, border-color .15s, box-shadow .15s; }
+  .ccard:hover { transform: translateY(-3px); border-color: var(--hivis); box-shadow: 0 14px 30px -14px rgba(0, 0, 0, .8); }
+  .ccard.dim { opacity: .85; }
+  .ccard .thumb { position: relative; aspect-ratio: 16 / 9; background: #0b0c0f; }
+  .ccard .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .nothumb { display: grid; place-items: center; width: 100%; height: 100%; color: var(--on-asphalt-muted); font-size: 12px; background: #0b0c0f; }
+  .ccard .state, .ccard .jbadge, .sbadge { position: absolute; font: 700 10.5px/1 var(--mono); letter-spacing: .6px; text-transform: uppercase; padding: 5px 8px; border-radius: 5px; }
+  .ccard .state { top: 8px; left: 8px; background: var(--asphalt); color: var(--hivis); border: 1px solid var(--asphalt-line); }
+  .ccard .st-error, .ccard .st-cancelled { color: #fca5a5; }
+  .ccard .jbadge { bottom: 8px; left: 8px; background: var(--bad-lamp); color: #fff; }
+  .sbadge { top: 8px; right: 8px; color: #fff; }
+  .sbadge.real { background: var(--ok); } .sbadge.liar { background: var(--bad-lamp); }
+  .cbody { padding: 12px 14px 12px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .ctitle { font-family: var(--head); font-size: 19px; font-weight: 700; letter-spacing: .3px; line-height: 1.15; }
+  .cmeta { font-size: 12px; color: var(--on-asphalt-muted); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 99px;
+    background: color-mix(in srgb, var(--lamp) 16%, transparent); color: color-mix(in srgb, var(--lamp) 80%, #fff); border: 1px solid color-mix(in srgb, var(--lamp) 40%, transparent); }
+  .chip b { font-family: var(--mono); }
+  .chip.zero { opacity: .45; }
+  .cstory { margin: 0; font-size: 13px; color: var(--on-asphalt-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .cfoot { margin-top: auto; display: flex; gap: 10px; flex-wrap: wrap; font: 600 11px/1.4 var(--mono); color: var(--on-asphalt-muted); letter-spacing: .4px;
+    border-top: 1px dashed var(--asphalt-line); padding-top: 8px; }
+  .cfoot span:first-child { color: var(--hivis); }
+  .cfoot .offline { color: #fca5a5; }
+
+  /* --- samples dialog ------------------------------------------------------------------------ */
+  dialog.samples-dlg { width: min(1120px, calc(100vw - 24px)); }
+  .samples-dlg .dlg-head { margin: 0; }
+  .samples-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; padding: 20px 24px 24px; max-height: 75vh; overflow-y: auto; }
+  .scard { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--panel); }
+  .scard.liar { border-color: var(--bad-line); }
+  .svideo { position: relative; aspect-ratio: 16 / 9; background: #050506; }
+  .svideo video { width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer; }
+  .sbody { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .sbody h3 { margin: 0; font-size: 20px; text-transform: uppercase; letter-spacing: .4px; line-height: 1.15; }
+  .sbody blockquote { margin: 0; padding: 10px 12px; border-left: 4px solid var(--hivis); background: var(--soft); border-radius: 0 8px 8px 0; font-size: 13.5px; }
+  .scard.liar blockquote { border-left-color: var(--bad-lamp); }
+  mark { background: var(--bad-bg); color: var(--bad); border-bottom: 2px solid var(--bad-lamp); padding: 0 2px; border-radius: 3px; }
+  .lie-note { color: var(--bad); margin: 0; font-weight: 600; }
+  .sfoot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 4px; }
+  .sfoot .muted { flex: 1; min-width: 0; }
+  .banner.sample.real { background: var(--ok-bg); color: var(--ink); border-color: var(--ok-line); }
+  .banner.sample.real::before { background: var(--ok-lamp); clip-path: none; border-radius: 50%; content: "✓"; color: #fff; place-items: center; height: 22px; width: 22px; }
+  .banner.sample.liar { background: var(--bad-bg); color: var(--ink); border-color: var(--bad-line); }
+  @media (max-width: 560px) { #try-sample { display: none; } .samples-grid { padding: 14px; } }
+
   /* --- pending: investigation in progress --------------------------------------------- */
   /* no entrance animation here: this card is redrawn on every poll and would flicker */
   .pending { grid-column: 1 / -1; max-width: 580px; width: 100%; margin: 24px auto 0; padding: 0 0 22px; }
@@ -344,7 +410,6 @@
     .brand small { display: none; }
     .brand b { font-size: 19px; }
     header { gap: 10px; }
-    #picker { order: 5; flex: 1 1 100%; max-width: none; }
     .pill { padding: 4px 9px; font-size: 11px; }
     .pad { padding: 16px; }
     .summary { gap: 6px; padding: 8px; }
@@ -368,10 +433,11 @@
     <span class="logo"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3.5 38 35H2Z" fill="#ffd000" stroke="#17191d" stroke-width="2.5" stroke-linejoin="round"/><path d="M9.5 26.5s4.2-6.5 10.5-6.5 10.5 6.5 10.5 6.5-4.2 6.5-10.5 6.5S9.5 26.5 9.5 26.5Z" fill="#fff" stroke="#17191d" stroke-width="2.2" stroke-linejoin="round"/><circle cx="20" cy="26.5" r="3.4" fill="#17191d"/><circle cx="21.2" cy="25.4" r="1" fill="#fff"/></svg></span>
     <span><b>Physics Witness</b><small>Accident footage vs. the claimant's story</small></span>
   </a>
-  <select id="picker" aria-label="Claim"></select>
+  <a class="navlink" id="nav-home" href="/" hidden>← All claims</a>
   <span class="spacer"></span>
   <span id="svc-nebius" class="pill">Token Factory</span>
   <span id="svc-tavily" class="pill">Tavily</span>
+  <button class="btn ghost" id="try-sample" type="button" hidden>No video? Try a sample</button>
   <button class="btn primary" id="new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New claim</button>
 </header>
 
@@ -379,6 +445,15 @@
   <div class="hero"><span class="spinner"></span></div>
 </main>
 <footer><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>Evidence for a human adjuster, never a fraud verdict. "Can't tell" means the footage does not settle the claim.</footer>
+
+<dialog id="samples-dlg" class="samples-dlg">
+  <div class="dlg-head">
+    <span class="logo"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3.5 38 35H2Z" fill="#ffd000" stroke="#17191d" stroke-width="2.5" stroke-linejoin="round"/><circle cx="20" cy="26" r="4.5" fill="#17191d"/></svg></span>
+    <div><h2>Try a sample claim</h2><p>Real dashcam footage with a ready-made claimant story. Some stories are true, one has a lie in it.</p></div>
+    <button class="x" type="button" id="samples-close" aria-label="Close">×</button>
+  </div>
+  <div class="samples-grid" id="samples-grid"><span class="spinner"></span></div>
+</dialog>
 
 <dialog id="dlg">
   <form id="form" method="dialog">
@@ -390,7 +465,7 @@
     <label class="drop" id="drop">
       <input type="file" name="video" accept="video/*" required>
       <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg></span>
-      <span><strong id="drop-title">Drop the dashcam / CCTV clip here</strong><span id="drop-sub">or click to browse · MP4, MOV, WebM up to 200 MB</span></span>
+      <span><strong id="drop-title">Drop the dashcam / CCTV clip here</strong><span id="drop-sub">or click to browse · one continuous clip, MP4, MOV or WebM up to 200 MB</span></span>
     </label>
     <label>Claimant's story<textarea name="story" required placeholder="I was stopped at the red light when the other car hit my rear bumper…"></textarea></label>
     <div class="row">
@@ -447,16 +522,45 @@ async function loadHealth() {
   } catch {}
 }
 
-async function loadList(selectId) {
-  const list = await api("/api/claims");
-  const picker = $("#picker");
-  picker.replaceChildren(...list.map(m => h("option", { value: m.id }, `${m.title || m.id}${m.status !== "done" ? ` (${m.status})` : ""}`)));
-  picker.hidden = !list.length;
-  const id = selectId || (list.find(m => m.id === state.id) || list[0] || {}).id;
-  if (!id) return renderEmpty();
-  picker.value = id;
-  if (id !== state.id || !state.data) await open(id);
+// --- routing: "/" is the home page, "/claims/<id>" a claim ----------------------------
+
+const CLAIM_PATH = /^\/claims\/([a-f0-9]{12})\/?$/;
+
+function go(path) {
+  if (location.pathname !== path) {
+    history.replaceState({ ...(history.state || {}), scroll: scrollY }, "");   // so Back returns to the same spot
+    history.pushState({}, "", path);
+    scrollTo(0, 0);                                                             // a newly opened page starts at the top
+  }
+  route();
 }
+
+function route() {
+  clearTimeout(state.poll);
+  const m = location.pathname.match(CLAIM_PATH);
+  $("#nav-home").hidden = !m;
+  if (m) return open(m[1]).catch(err => renderMissing(err));
+  state = { id: null, data: null, source: "main", selected: null, poll: null, rendered: null };
+  return showHome();
+}
+
+function renderMissing(err) {
+  $("#app").replaceChildren(h("div", { class: "card pad notice" },
+    h("h2", {}, "Claim not found"),
+    h("p", { class: "muted" }, err && err.message === "not found" ? "This claim was deleted or never existed." : `Could not load it: ${err?.message || err}`),
+    h("div", { class: "actions-row" }, h("a", { class: "btn primary", href: "/", onclick: e => { e.preventDefault(); go("/"); } }, "All claims"))));
+}
+
+window.addEventListener("popstate", async e => {
+  await route();
+  if (e.state && e.state.scroll != null) requestAnimationFrame(() => scrollTo(0, e.state.scroll));
+});
+document.addEventListener("click", e => {
+  const a = e.target.closest("a[data-nav]");
+  if (!a || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;   // let new-tab clicks through
+  e.preventDefault();
+  go(a.getAttribute("href"));
+});
 
 const busy = meta => meta.status === "queued" || meta.status === "running";
 
@@ -474,10 +578,7 @@ async function open(id) {
     } else {
       renderPending(meta);
     }
-    state.poll = setTimeout(async () => {
-      await open(id);                              // renders the finished report once it's done
-      if (!busy(state.data.meta)) loadList(id);    // refresh the picker's status labels
-    }, 1500);
+    state.poll = setTimeout(() => { if (location.pathname.match(CLAIM_PATH)?.[1] === id) open(id); }, 1500);
     return;
   }
   if ((meta.status === "error" || meta.status === "cancelled") && !report) return renderError(meta);
@@ -491,22 +592,114 @@ const ICON = {
 };
 const svg = markup => { const t = document.createElement("template"); t.innerHTML = markup; return t.content.firstChild; };
 
-function renderEmpty() {
+const ago = ts => {
+  const d = (Date.now() / 1000 - ts);
+  if (d < 60) return "just now";
+  if (d < 3600) return `${Math.floor(d / 60)} min ago`;
+  if (d < 86400) return `${Math.floor(d / 3600)} h ago`;
+  return new Date(ts * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+};
+
+function claimCard(m) {
+  const s = m.summary || {};
+  const status = { done: null, queued: "Queued", running: "Running", error: "Stopped", cancelled: "Cancelled" }[m.status];
+  const thumb = m.thumb ? h("img", { src: `/api/claims/${m.id}/frames/${m.thumb}`, alt: "", loading: "lazy" })
+                        : h("div", { class: "nothumb" }, busy(m) ? h("span", { class: "spinner" }) : "No preview");
+  const facts = [m.duration_s ? `${Number(m.duration_s).toFixed(1)}s clip` : null, m.claims ? `${m.claims} statements` : null,
+                 m.rounds > 1 ? `${m.rounds - 1} evidence round${m.rounds > 2 ? "s" : ""}` : null].filter(Boolean);
+  const cost = m.usd != null ? usd(m.usd) : m.tokens ? `${num(m.tokens)} tokens` : null;
+  return h("a", { class: `ccard${m.status === "done" ? "" : " dim"}`, href: `/claims/${m.id}`, "data-nav": "1" },
+    h("div", { class: "thumb" }, thumb,
+      status ? h("span", { class: `state st-${m.status}` }, status) : null,
+      m.sample ? h("span", { class: `sbadge ${m.sample.label}` }, m.sample.label === "liar" ? "Sample · liar story" : "Sample · real story") : null,
+      m.joined ? h("span", { class: "jbadge" }, "Joined clips") : null),
+    h("div", { class: "cbody" },
+      h("div", { class: "ctitle" }, m.title || m.id),
+      h("div", { class: "cmeta" }, [m.created ? ago(m.created) : null, ...facts].filter(Boolean).join(" · ")),
+      m.status === "done" ? h("div", { class: "chips" },
+        ["supported", "contradicted", "cant_tell"].map(k => h("span", { class: `chip v-${k}${s[k] ? "" : " zero"}` }, h("b", {}, s[k] ?? 0), VERDICT[k]))) : null,
+      m.story ? h("p", { class: "cstory" }, m.story) : null,
+      h("div", { class: "cfoot" },
+        h("span", {}, `Case #${m.id.slice(0, 6).toUpperCase()}`),
+        cost ? h("span", {}, cost) : null,
+        m.mode === "offline-stub" ? h("span", { class: "offline" }, "offline run") : null)));
+}
+
+async function showHome() {
+  const [claims, samples] = await Promise.all([api("/api/claims"), api("/api/samples").catch(() => [])]);
+  state.samples = samples;
+  if (location.pathname.match(CLAIM_PATH)) return;          // user navigated away while loading
   const step = (icon, title, text, extra) => h("div", { class: "card" },
     h("span", { class: "sign" }, svg(ICON[icon])), h("h3", {}, title), h("p", {}, text), extra || null);
   const tape = "Evidence · Claim under review · Do not cross · ".repeat(6).repeat(2);
-  const h1 = h("h1", {}, "Does the footage ", h("em", {}, "back the story?"));
-  $("#app").replaceChildren(h("div", { class: "hero" },
+  const anySample = samples.some(x => x.available);
+  const hero = h("div", { class: `hero${claims.length ? " compact" : ""}` },
     h("span", { class: "eyebrow" }, "● Accident claim review · Physical AI"),
-    h1,
+    h("h1", {}, "Does the footage ", h("em", {}, "back the story?")),
     h("p", { class: "lead" }, "Physics Witness reads claim video like an accident investigator and shows, sentence by sentence, what the footage supports, contradicts, or can't settle."),
-    h("div", { class: "cta" }, h("button", { class: "btn primary big", onclick: openDialog }, svg(ICON.upload), "Open a claim file")),
+    h("div", { class: "cta" },
+      h("button", { class: "btn primary big", onclick: openDialog }, svg(ICON.upload), "Open a claim file"),
+      anySample ? h("button", { class: "btn ghost big", onclick: openSamples }, "No video? Try a sample") : null),
     h("div", { class: "tape", "aria-hidden": "true" }, h("span", {}, tape)),
+    claims.length ? h("section", { class: "home-claims" },
+      h("div", { class: "home-head" }, h("h2", {}, "Your claims"), h("span", { class: "muted" }, `${claims.length} on file`)),
+      h("div", { class: "cgrid" }, claims.map(claimCard))) : null,
     h("div", { class: "howto" },
       step("upload", "1 · File the claim", "The dashcam or CCTV clip and the claimant's written account, plus place and date if you have them."),
       step("eye", "2 · Cosmos reads the frames", "Timestamped frames go to NVIDIA Cosmos, which reports who moved, where, when, and in what conditions."),
       step("scale", "3 · Ultra cross-examines", "Nemotron Ultra checks each statement against what was seen, and links every verdict to its frames.",
-        h("div", { class: "tags" }, ["supported", "contradicted", "cant_tell"].map(k => h("span", { class: `tag v-${k}` }, VERDICT[k])))))));
+        h("div", { class: "tags" }, ["supported", "contradicted", "cant_tell"].map(k => h("span", { class: `tag v-${k}` }, VERDICT[k]))))));
+  $("#app").replaceChildren(hero);
+  $("#try-sample").hidden = !anySample;
+  if (claims.some(busy)) state.poll = setTimeout(() => { if (location.pathname === "/") showHome(); }, 3000);
+}
+
+// --- samples --------------------------------------------------------------------------
+
+async function openSamples() {
+  const grid = $("#samples-grid");
+  $("#samples-dlg").showModal();
+  let samples = state.samples;
+  try { if (!samples) samples = state.samples = await api("/api/samples"); }
+  catch (err) { grid.replaceChildren(h("p", { class: "err" }, `Could not load samples: ${err.message}`)); return; }
+  grid.replaceChildren(...samples.map(sampleCard));
+}
+
+function storyWithLie(sample) {
+  const lie = sample.label === "liar" && sample.lie_sentence;
+  if (!lie || !sample.story.includes(lie)) return sample.story;
+  const [before, after] = sample.story.split(lie);
+  return [before, h("mark", { title: "This is the sentence that was changed" }, lie), after];
+}
+
+function sampleCard(sample) {
+  const video = sample.available
+    ? h("video", { src: `/api/samples/${sample.id}/video#t=0.5`, muted: true, loop: true, playsinline: true, preload: "metadata" })
+    : h("div", { class: "nothumb" }, "Video not added yet");
+  if (sample.available) {
+    video.muted = true;
+    video.addEventListener("mouseenter", () => video.play().catch(() => {}));
+    video.addEventListener("mouseleave", () => video.pause());
+    video.addEventListener("focus", () => video.play().catch(() => {}));
+  }
+  const btn = h("button", { class: "btn primary", type: "button" }, "Try this");
+  btn.disabled = !sample.available;
+  btn.addEventListener("click", async () => {
+    btn.disabled = true; btn.textContent = "Opening…";
+    try {
+      const { id } = await api(`/api/samples/${sample.id}/try`, { method: "POST" });
+      $("#samples-dlg").close();
+      go(`/claims/${id}`);
+    } catch (err) { btn.disabled = false; btn.textContent = "Try this"; alert(`Could not start the sample: ${err.message}`); }
+  });
+  return h("div", { class: `scard ${sample.label}` },
+    h("div", { class: "svideo" }, video, h("span", { class: `sbadge ${sample.label}` }, sample.label === "liar" ? "Liar story" : "Real story")),
+    h("div", { class: "sbody" },
+      h("h3", {}, sample.title),
+      sample.description ? h("p", { class: "muted src" }, sample.description) : null,
+      h("blockquote", {}, storyWithLie(sample)),
+      sample.label === "liar" ? h("p", { class: "src lie-note" }, "The highlighted sentence is the lie. Watch whether the tool catches it.") : null,
+      h("div", { class: "sfoot" }, h("span", { class: "muted src" }, sample.license ? `Licence: ${sample.license}` : ""), btn)));
 }
 
 function stepList(stage) {
@@ -551,8 +744,7 @@ async function deleteClaim(id) {
   const r = await fetch(`/api/claims/${id}`, { method: "DELETE" });
   if (!r.ok) { alert(`Could not delete: ${(await r.json().catch(() => ({}))).detail || r.statusText}`); return; }
   clearTimeout(state.poll);
-  state = { id: null, data: null, source: "main", selected: null, poll: null, rendered: null };
-  await loadList();
+  go("/");
 }
 
 const cancelButton = meta => {
@@ -610,6 +802,8 @@ function render() {
   const banners = [
     report.mode !== "live" ? h("div", { class: "banner" }, "Offline mode: no model calls were made, so every verdict is Can't tell. Add NEBIUS_API_KEY to get real readings.") : null,
     meta.error ? h("div", { class: "banner bad" }, meta.error) : null,
+    joinedBanner(report),
+    sampleBanner(meta),
     h("div", { id: "live" }),
   ];
   const left = h("section", {}, banners,
@@ -660,6 +854,25 @@ function render() {
   if (busy(meta)) updateLive(meta);
 }
 
+function sampleBanner(meta) {
+  if (!meta.sample) return null;
+  const liar = meta.sample.label === "liar";
+  return h("div", { class: `banner sample ${meta.sample.label}` }, h("span", {},
+    liar ? ["Sample claim with a ", h("strong", {}, "liar story"), ". The lie: ", h("mark", {}, meta.sample.lie_sentence || "one changed detail"),
+            " It should come back Contradicted."]
+         : ["Sample claim with a ", h("strong", {}, "real story"), ". Every sentence matches the footage, so nothing should come back Contradicted."]));
+}
+
+function joinedBanner(report) {
+  const parts = report.sources.filter(s => (s.segments || []).length > 1);
+  if (!parts.length) return null;
+  return h("div", { class: "banner" }, parts.map(s => {
+    const cuts = s.segments.slice(1).map(g => fmt(g.t_start)).join(", ");
+    return `${s.label} looks like ${s.segments.length} different clips joined together (cut at ${cuts}). ` +
+      "Verdicts only use the clip the story describes. For best results upload one continuous clip and add other clips as extra footage.";
+  }));
+}
+
 function showSource(id, force = false) {
   if (id === state.source && !force) return Promise.resolve();
   const src = sourceById(id);
@@ -668,6 +881,10 @@ function showSource(id, force = false) {
   const tl = state.tl;
   tl.replaceChildren(h("div", { class: "track" }));
   for (const f of src.frames) tl.append(h("div", { class: "tick", style: `left:${state.pct(f.t)}` }));
+  for (const g of (src.segments || []).slice(1))
+    tl.append(h("div", { class: "cut", style: `left:${state.pct(g.t_start)}`, title: `Cut to different footage at ${fmt(g.t_start)}${g.cut_note ? ` · ${g.cut_note}` : ""}` }));
+  for (const j of src.camera_jolts || [])
+    tl.append(h("div", { class: "jolt", style: `left:${state.pct(j.t)}`, title: `Camera jolt at ${fmt(j.t)}${j.what ? ` · ${j.what}` : ""}` }, "⚡"));
   for (const v of state.data.report.verdicts) for (const r of v.evidence || []) if (r.source === src.id)
     tl.append(h("div", { class: `mark v-${v.verdict}${v.claim_id === state.selected ? " sel" : ""}`, "data-claim": v.claim_id,
       style: `left:${state.pct(r.t)}`, title: `${fmt(r.t)} · ${v.claim}`,
@@ -823,13 +1040,17 @@ const showFile = () => {
   const f = fileInput.files[0];
   drop.classList.toggle("has", !!f);
   $("#drop-title").textContent = f ? f.name : "Drop the dashcam / CCTV clip here";
-  $("#drop-sub").textContent = f ? `${(f.size / 1048576).toFixed(1)} MB · click to change` : "or click to browse · MP4, MOV, WebM up to 200 MB";
+  $("#drop-sub").textContent = f ? `${(f.size / 1048576).toFixed(1)} MB · click to change` : "or click to browse · one continuous clip, MP4, MOV or WebM up to 200 MB";
 };
 fileInput.addEventListener("change", showFile);
 for (const ev of ["dragenter", "dragover"]) drop.addEventListener(ev, () => drop.classList.add("over"));
 for (const ev of ["dragleave", "drop"]) drop.addEventListener(ev, () => drop.classList.remove("over"));
 $("#form").addEventListener("reset", () => setTimeout(showFile));
-$("#picker").addEventListener("change", e => open(e.target.value));
+$("#try-sample").addEventListener("click", openSamples);
+$("#samples-close").addEventListener("click", () => $("#samples-dlg").close());
+$("#samples-dlg").addEventListener("close", () => document.querySelectorAll("#samples-grid video").forEach(v => v.pause()));
+$("#nav-home").addEventListener("click", e => { e.preventDefault(); go("/"); });
+document.querySelector("header .brand").addEventListener("click", e => { e.preventDefault(); go("/"); });
 $("#form").addEventListener("submit", async e => {
   e.preventDefault();
   const btn = $("#submit");
@@ -839,7 +1060,7 @@ $("#form").addEventListener("submit", async e => {
     const { id } = await api("/api/claims", { method: "POST", body: new FormData(e.target) });
     $("#dlg").close();
     e.target.reset();
-    await loadList(id);
+    go(`/claims/${id}`);
   } catch (err) {
     $("#form-err").textContent = err.message;
   } finally {
@@ -848,7 +1069,8 @@ $("#form").addEventListener("submit", async e => {
 });
 
 loadHealth();
-loadList().catch(err => $("#app").replaceChildren(h("div", { class: "empty", style: "grid-column:1/-1" }, `Could not load claims: ${err.message}`)));
+api("/api/samples").then(list => { state.samples = list; $("#try-sample").hidden = !list.some(x => x.available); }).catch(() => {});
+route().catch(err => $("#app").replaceChildren(h("div", { class: "card pad notice" }, `Could not load claims: ${err.message}`)));
 </script>
 </body>
 </html>
