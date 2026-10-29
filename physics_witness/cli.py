@@ -202,13 +202,19 @@ def _cmd_trim(args) -> int:
     import subprocess
 
     from .frames import ffmpeg_exe, video_duration
+    if not args.video.is_file():
+        print(f"error: no video at {args.video} (check the path; quote it if it has spaces)", file=sys.stderr)
+        return 1
     start, length = _seconds(args.start), _seconds(args.length)
     out = args.out or args.video.with_name(f"{args.video.stem}-{int(start)}s-{int(length)}s{args.video.suffix}")
     # Re-encode so the cut is frame-accurate (a stream copy can only cut on keyframes).
     cmd = [ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{start:.3f}", "-i", str(args.video),
            "-t", f"{length:.3f}", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
            str(out.with_suffix(".mp4"))]
-    subprocess.run(cmd, check=True)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if subprocess.run(cmd).returncode != 0:
+        print(f"error: ffmpeg could not trim {args.video}", file=sys.stderr)
+        return 1
     out = out.with_suffix(".mp4")
     print(f"{out}  ({video_duration(out):.1f}s)")
     return 0
