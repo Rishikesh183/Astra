@@ -8,7 +8,7 @@ from typing import Any, Callable
 
 import httpx
 
-from ..cache import ResponseCache
+from ..cache import ResponseCache, make_cache
 from ..config import Settings
 
 
@@ -90,7 +90,7 @@ class TokenFactoryClient:
     def __init__(self, settings: Settings, cache: ResponseCache | None = None,
                  ledger: UsageLedger | None = None, transport: httpx.BaseTransport | None = None):
         self.settings = settings
-        self.cache = cache or ResponseCache(settings.cache_dir)
+        self.cache = cache or make_cache(settings)
         self.ledger = ledger or UsageLedger()
         self._http = httpx.Client(
             base_url=settings.nebius_base_url.rstrip("/") + "/",

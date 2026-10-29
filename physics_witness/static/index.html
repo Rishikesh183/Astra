@@ -440,6 +440,7 @@
   <span class="spacer"></span>
   <span id="svc-nebius" class="pill">Token Factory</span>
   <span id="svc-tavily" class="pill">Tavily</span>
+  <span id="svc-store" class="pill" hidden>Storage</span>
   <button class="btn ghost" id="try-sample" type="button" hidden>No video? Try a sample</button>
   <button class="btn primary" id="new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New claim</button>
 </header>
@@ -468,7 +469,7 @@
     <label class="drop" id="drop">
       <input type="file" name="video" accept="video/*" required>
       <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg></span>
-      <span><strong id="drop-title">Drop the dashcam / CCTV clip here</strong><span id="drop-sub">or click to browse · one continuous clip, MP4, MOV or WebM up to 200 MB</span></span>
+      <span><strong id="drop-title">Drop the dashcam / CCTV clip here</strong><span id="drop-sub">or click to browse · one continuous clip, MP4, MOV or WebM up to 40 MB</span></span>
     </label>
     <label>Claimant's story<textarea name="story" required placeholder="I was stopped at the red light when the other car hit my rear bumper…"></textarea></label>
     <div class="row">
@@ -522,6 +523,10 @@ async function loadHealth() {
     $("#svc-nebius").textContent = s.nebius ? "Token Factory: live" : "Token Factory: offline";
     $("#svc-tavily").classList.toggle("on", s.tavily);
     $("#svc-tavily").textContent = s.tavily ? "Tavily: live" : "Tavily: offline";
+    const store = $("#svc-store");
+    store.hidden = !s.store;
+    store.classList.add("on");                          // either store works; this pill only says which
+    store.textContent = s.store === "supabase" ? "Storage: Supabase" : "Storage: local files";
   } catch {}
 }
 
@@ -565,6 +570,12 @@ document.addEventListener("click", e => {
   go(a.getAttribute("href"));
 });
 
+const MAX_UPLOAD_MB = 40;   // matches the server limit
+const tooBig = fd => {
+  const f = fd.get("video");
+  return f && f.size > MAX_UPLOAD_MB * 1048576
+    ? `This video is ${(f.size / 1048576).toFixed(1)} MB; the limit is ${MAX_UPLOAD_MB} MB. Trim or compress it first.` : "";
+};
 const busy = meta => meta.status === "queued" || meta.status === "running";
 
 async function open(id) {
@@ -968,6 +979,7 @@ function askCard(report, meta) {
     e.preventDefault();
     err.textContent = "";
     const fd = new FormData(form);   // read before disabling: disabled inputs are left out of FormData
+    if (tooBig(fd)) { err.textContent = tooBig(fd); return; }
     for (const el of form.elements) el.disabled = true;
     try {
       await api(`/api/claims/${state.id}/evidence`, { method: "POST", body: fd });
@@ -1057,7 +1069,7 @@ const showFile = () => {
   const f = fileInput.files[0];
   drop.classList.toggle("has", !!f);
   $("#drop-title").textContent = f ? f.name : "Drop the dashcam / CCTV clip here";
-  $("#drop-sub").textContent = f ? `${(f.size / 1048576).toFixed(1)} MB · click to change` : "or click to browse · one continuous clip, MP4, MOV or WebM up to 200 MB";
+  $("#drop-sub").textContent = f ? `${(f.size / 1048576).toFixed(1)} MB · click to change` : "or click to browse · one continuous clip, MP4, MOV or WebM up to 40 MB";
 };
 fileInput.addEventListener("change", showFile);
 for (const ev of ["dragenter", "dragover"]) drop.addEventListener(ev, () => drop.classList.add("over"));
@@ -1074,7 +1086,9 @@ $("#form").addEventListener("submit", async e => {
   btn.disabled = true;
   $("#form-err").textContent = "";
   try {
-    const { id } = await api("/api/claims", { method: "POST", body: new FormData(e.target) });
+    const fd = new FormData(e.target);
+    if (tooBig(fd)) throw new Error(tooBig(fd));
+    const { id } = await api("/api/claims", { method: "POST", body: fd });
     $("#dlg").close();
     e.target.reset();
     go(`/claims/${id}`);

@@ -1,4 +1,4 @@
-"""Command line: `physics-witness checks|frames|run|add|evidence|liar|trim|samples|serve`."""
+"""Command line: `physics-witness checks|frames|run|add|evidence|liar|trim|samples|supabase|serve`."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from .config import Settings
+from .store import VIDEO_EXTS
 
 
 def _cmd_checks(args) -> int:
@@ -224,6 +225,61 @@ def _cmd_samples(args) -> int:
     return 0
 
 
+def _supabase_backend():
+    from .backends import SupabaseBackend
+    s = Settings.from_env()
+    return SupabaseBackend(s.supabase_url, s.supabase_key, s.supabase_bucket)
+
+
+def _cmd_supabase_check(args) -> int:
+    backend = _supabase_backend()
+    ok = True
+    for name, passed, detail in backend.check():
+        ok &= passed
+        print(f"[{'PASS' if passed else 'FAIL'}] {name}: {detail}")
+    if ok:
+        print("\nSupabase is ready. Set PW_STORE=supabase in .env and restart the server.")
+    else:
+        print("\nRun deploy/supabase/schema.sql in the Supabase SQL editor, and check SUPABASE_URL / SUPABASE_SERVICE_KEY.")
+    return 0 if ok else 1
+
+
+def _cmd_supabase_migrate(args) -> int:
+    """Copy local claims (and optionally the local model cache) into Supabase."""
+    import json
+
+    from .backends import FilesBackend
+    backend = _supabase_backend()
+    local = FilesBackend(args.data)
+    moved = 0
+    for meta in local.list_metas():
+        run_id = str(meta.get("id", ""))
+        d = args.data / run_id
+        if not run_id or not d.is_dir() or meta.get("status") in ("queued", "running"):
+            continue
+        if backend.read_meta(run_id) is not None and not args.force:
+            print(f"skip {run_id} (already in Supabase; --force to overwrite)")
+            continue
+        files = [(p.name, p) for p in sorted(d.iterdir()) if p.suffix.lower() in VIDEO_EXTS]
+        files += [(f"frames/{p.name}", p) for p in sorted((d / "frames").glob("*.jpg"))]
+        objects = backend.publish_files(run_id, files)
+        videos = {("main" if p.stem == "video" else p.stem): p.name for rel, p in files if not rel.startswith("frames/")}
+        backend.write_meta(run_id, {**meta, "objects": objects, "videos": videos})
+        report = local.read_report(run_id)
+        if report:
+            backend.write_report(run_id, report)
+        moved += 1
+        print(f"moved {run_id}  {meta.get('title', '')[:60]}  ({len(objects)} files)")
+    cached = 0
+    if args.cache:
+        root = Settings.from_env().cache_dir
+        for f in sorted(root.glob("*/*.json")):
+            backend.cache_put(f.parent.name, f.stem, json.loads(f.read_text(encoding="utf-8")))
+            cached += 1
+    print(f"\n{moved} claims moved" + (f", {cached} cached model replies copied" if args.cache else ""))
+    return 0
+
+
 def _cmd_serve(args) -> int:
     import uvicorn
 
@@ -319,6 +375,15 @@ def main(argv: list[str] | None = None) -> int:
     sm = sub.add_parser("samples", help="list the sample claims and check the samples file")
     sm.add_argument("--file", type=Path, help="samples file (default: PW_SAMPLES or demo/samples.json)")
     sm.set_defaults(fn=_cmd_samples)
+
+    sb = sub.add_parser("supabase", help="Supabase storage: check the setup, or move local claims there")
+    sbs = sb.add_subparsers(dest="supabase_cmd", required=True)
+    sbs.add_parser("check", help="check the tables, bucket and keys").set_defaults(fn=_cmd_supabase_check)
+    sm2 = sbs.add_parser("migrate", help="copy local claims into Supabase")
+    sm2.add_argument("--data", type=Path, default=Path("data/claims"))
+    sm2.add_argument("--cache", action="store_true", help="also copy the local model-reply cache")
+    sm2.add_argument("--force", action="store_true", help="overwrite claims already in Supabase")
+    sm2.set_defaults(fn=_cmd_supabase_migrate)
 
     w = sub.add_parser("serve", help="start the web app")
     w.add_argument("--data", type=Path, default=Path("data/claims"))

@@ -94,6 +94,26 @@ Tests (no network or keys needed; the live code path is exercised through a mock
 pytest
 ```
 
+## Storage: local files or Supabase
+
+By default everything is stored as files on the server: claims in `data/claims/<id>/` and cached model replies in `.cache/responses/`. That's fine on one machine. On a hosted deployment, where containers are replaced and can run side by side, switch to **Supabase**:
+
+| What | `PW_STORE=files` (default) | `PW_STORE=supabase` |
+|---|---|---|
+| Claim status, card stats, full report | `meta.json`, `report.json` | Postgres table `claims` (`meta`, `report` as JSONB; status, title, dates as columns) |
+| Verdicts | inside the report | also table `verdicts`, one row per statement (query with SQL; see the `claim_verdict_summary` view) |
+| Videos, extra clips, evidence frames | the claim folder | private Storage bucket `claims`, served through short-lived signed URLs |
+| Cached model replies | `.cache/responses/` | local files first, then the shared table `model_cache` |
+
+Setup:
+
+1. Create a Supabase project. In **SQL Editor**, run [`deploy/supabase/schema.sql`](deploy/supabase/schema.sql). It creates the tables (with Row Level Security on and no public policies), the private bucket and the summary view.
+2. In `.env`, set `PW_STORE=supabase`, `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` (the **service_role** key from Settings → API; it stays on the server).
+3. `physics-witness supabase check` should print PASS for every step.
+4. Optional: `physics-witness supabase migrate --cache` copies your existing local claims and cached model replies into Supabase. The cached replies matter for the sample claims, so a fresh deployment answers them instantly.
+
+Any server instance can then list, show, cancel and delete any claim. A run executes on the instance that started it; a claim that stops reporting progress for 10 minutes is marked as interrupted. Uploads are capped at 40 MB per video (in the page and on the server), below the free plan's 50 MB file limit.
+
 ## Sample claims ("No video? Try a sample")
 
 The home page lists every claim as a card (thumbnail, verdict counts, length, cost), and each claim has its own link, `/claims/<id>`. For visitors without footage, **No video? Try a sample** opens ready-made claims: real dashcam clips with a true story or a story with one lie in it (highlighted).

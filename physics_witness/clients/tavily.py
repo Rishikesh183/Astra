@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 
-from ..cache import ResponseCache
+from ..cache import ResponseCache, make_cache
 from ..config import Settings
 
 TAVILY_URL = "https://api.tavily.com/search"
@@ -16,7 +16,7 @@ class TavilyClient:
     def __init__(self, settings: Settings, cache: ResponseCache | None = None,
                  transport: httpx.BaseTransport | None = None):
         self.settings = settings
-        self.cache = cache or ResponseCache(settings.cache_dir)
+        self.cache = cache or make_cache(settings)
         self._http = httpx.Client(timeout=30.0, transport=transport)
 
     @property
