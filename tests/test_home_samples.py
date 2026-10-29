@@ -116,3 +116,19 @@ def test_samples_cli(clip, tmp_path, capsys):
     assert cli.main(["samples", "--file", str(path)]) == 0
     out = capsys.readouterr().out
     assert "ok  crossing-true" in out and "--  missing-clip" in out and "video not found" in out
+
+
+def test_samples_file_found_from_another_folder(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)                              # no demo/ here
+    assert Settings.from_env().samples_file == ROOT / "demo" / "samples.json"
+    (tmp_path / "demo").mkdir()
+    (tmp_path / "demo" / "samples.json").write_text('{"samples": []}', encoding="utf-8")
+    assert str(Settings.from_env().samples_file) == str(__import__("pathlib").Path("demo/samples.json"))  # local file wins
+    monkeypatch.setenv("PW_SAMPLES", "custom.json")
+    assert str(Settings.from_env().samples_file) == "custom.json"
+
+
+def test_hidden_attribute_beats_button_styles():
+    html = (ROOT / "physics_witness" / "static" / "index.html").read_text(encoding="utf-8")
+    assert "[hidden] { display: none !important; }" in html
+    assert '<button class="btn ghost" id="try-sample" type="button" hidden>' in html
