@@ -112,7 +112,7 @@ Setup:
 3. `physics-witness supabase check` should print PASS for every step.
 4. Optional: `physics-witness supabase migrate --cache` copies your existing local claims and cached model replies into Supabase. The cached replies matter for the sample claims, so a fresh deployment answers them instantly.
 
-Any server instance can then list, show, cancel and delete any claim. A run executes on the instance that started it; a claim that stops reporting progress for 10 minutes is marked as interrupted. Keep uploads under your project's storage file-size limit (Settings → Storage).
+Any server instance can then list, show, cancel and delete any claim. A run executes on the instance that started it; a claim that stops reporting progress for 10 minutes is marked as interrupted. Uploads are capped at 40 MB per video (in the page and on the server), below the free plan's 50 MB file limit.
 
 ## Sample claims ("No video? Try a sample")
 

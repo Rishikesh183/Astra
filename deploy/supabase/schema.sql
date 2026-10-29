@@ -48,10 +48,9 @@ alter table public.verdicts enable row level security;
 alter table public.model_cache enable row level security;
 
 -- Private bucket for videos and evidence frames (served through signed URLs).
--- 200 MB per file to match the upload limit; your project's global limit may be
--- lower (Settings -> Storage), so keep clips short.
+-- 40 MB per file to match the app's upload limit (under the free plan's 50 MB).
 insert into storage.buckets (id, name, public, file_size_limit)
-values ('claims', 'claims', false, 209715200)
+values ('claims', 'claims', false, 41943040)
 on conflict (id) do nothing;
 
 -- Handy for the demo: verdict counts per claim.

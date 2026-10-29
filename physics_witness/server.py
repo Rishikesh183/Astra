@@ -15,7 +15,8 @@ from .samples import load_samples
 from .store import VIDEO_EXTS, RunStore
 
 STATIC = Path(__file__).parent / "static"
-MAX_UPLOAD_BYTES = 200 * 1024 * 1024
+MAX_UPLOAD_MB = 40              # under Supabase's 50 MB free-plan file limit
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
 
 def create_app(data_dir: Path = Path("data/claims"), settings: Settings | None = None,
@@ -93,7 +94,7 @@ def create_app(data_dir: Path = Path("data/claims"), settings: Settings | None =
                 size += len(chunk)
                 if size > MAX_UPLOAD_BYTES:
                     Path(tmp.name).unlink(missing_ok=True)
-                    raise HTTPException(413, "video larger than 200 MB")
+                    raise HTTPException(413, f"video larger than {MAX_UPLOAD_MB} MB: trim or compress it")
                 tmp.write(chunk)
         return Path(tmp.name)
 
