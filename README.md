@@ -113,6 +113,8 @@ In the web app you can upload a clip with a story (plus optional place and date)
 
 With no API key (or `PW_OFFLINE=1`) everything runs with deterministic stub replies: the video is really sampled, but every verdict is Can't tell.
 
+Hosting it publicly (Nebius Serverless + Supabase): see [docs/DEPLOY.md](docs/DEPLOY.md). Demo video script: [docs/VIDEO_SCRIPT.md](docs/VIDEO_SCRIPT.md).
+
 Docker (one command):
 
 ```bash
