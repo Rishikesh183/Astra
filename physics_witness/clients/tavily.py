@@ -10,6 +10,8 @@ from ..cache import ResponseCache, make_cache
 from ..config import Settings
 
 TAVILY_URL = "https://api.tavily.com/search"
+# Bad key, rate limit or plan/credit limit (432, 433): worth retrying with the fallback key.
+KEY_PROBLEMS = {401, 403, 429, 432, 433}
 
 
 class TavilyClient:
@@ -21,7 +23,11 @@ class TavilyClient:
 
     @property
     def offline(self) -> bool:
-        return self.settings.offline or not self.settings.tavily_api_key
+        return self.settings.offline or not self._keys()
+
+    def _keys(self) -> list[str]:
+        s = self.settings
+        return [k for k in (s.tavily_api_key, s.tavily_fallback_key) if k]
 
     def search(self, query: str, *, max_results: int = 5, include_answer: bool = True) -> dict[str, Any]:
         if self.offline:
@@ -29,13 +35,14 @@ class TavilyClient:
         payload = {"query": query, "max_results": max_results, "include_answer": include_answer}
 
         def call() -> dict[str, Any]:
-            resp = self._http.post(
-                TAVILY_URL,
-                json=payload,
-                headers={"Authorization": f"Bearer {self.settings.tavily_api_key}"},
-            )
-            resp.raise_for_status()
-            return resp.json()
+            keys = self._keys()
+            for i, key in enumerate(keys):
+                resp = self._http.post(TAVILY_URL, json=payload, headers={"Authorization": f"Bearer {key}"})
+                if resp.status_code in KEY_PROBLEMS and i < len(keys) - 1:
+                    continue
+                resp.raise_for_status()
+                return resp.json()
+            raise AssertionError("unreachable")
 
         data, _ = self.cache.get_or_call("tavily", payload, call)
         return data
