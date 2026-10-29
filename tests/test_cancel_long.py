@@ -189,3 +189,8 @@ def test_trim_command(long_clip, tmp_path, capsys):
     assert cli.main(["trim", str(long_clip), "--start", "1:05", "--length", "12", "--out", str(out)]) == 0
     assert video_duration(out) == pytest.approx(12, abs=0.3)
     assert cli._seconds("1:05") == 65 and cli._seconds("0:01:05.5") == 65.5 and cli._seconds("20") == 20
+
+
+def test_trim_reports_a_missing_video(tmp_path, capsys):
+    assert cli.main(["trim", str(tmp_path / "nope.webm"), "--start", "0", "--length", "5"]) == 1
+    assert "no video at" in capsys.readouterr().err

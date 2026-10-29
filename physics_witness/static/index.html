@@ -269,8 +269,9 @@
     color: var(--on-asphalt); text-decoration: none; transition: transform .15s, border-color .15s, box-shadow .15s; }
   .ccard:hover { transform: translateY(-3px); border-color: var(--hivis); box-shadow: 0 14px 30px -14px rgba(0, 0, 0, .8); }
   .ccard.dim { opacity: .85; }
-  .ccard .thumb { position: relative; aspect-ratio: 16 / 9; background: #0b0c0f; }
-  .ccard .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* Fixed 16:9 box whatever the footage shape: portrait or square frames are letterboxed, never stretch the card. */
+  .ccard .thumb { position: relative; flex: none; aspect-ratio: 16 / 9; overflow: hidden; background: #0b0c0f; }
+  .ccard .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
   .nothumb { display: grid; place-items: center; width: 100%; height: 100%; color: var(--on-asphalt-muted); font-size: 12px; background: #0b0c0f; }
   .ccard .state, .ccard .jbadge, .sbadge { position: absolute; font: 700 10.5px/1 var(--mono); letter-spacing: .6px; text-transform: uppercase; padding: 5px 8px; border-radius: 5px; }
   .ccard .state { top: 8px; left: 8px; background: var(--asphalt); color: var(--hivis); border: 1px solid var(--asphalt-line); }
@@ -298,8 +299,8 @@
   .samples-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; padding: 20px 24px 24px; max-height: 75vh; overflow-y: auto; }
   .scard { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--panel); }
   .scard.liar { border-color: var(--bad-line); }
-  .svideo { position: relative; aspect-ratio: 16 / 9; background: #050506; }
-  .svideo video { width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer; }
+  .svideo { position: relative; flex: none; aspect-ratio: 16 / 9; overflow: hidden; background: #050506; }
+  .svideo video { position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; object-fit: contain; display: block; cursor: pointer; }
   .sbody { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
   .sbody h3 { margin: 0; font-size: 20px; text-transform: uppercase; letter-spacing: .4px; line-height: 1.15; }
   .sbody blockquote { margin: 0; padding: 10px 12px; border-left: 4px solid var(--hivis); background: var(--soft); border-radius: 0 8px 8px 0; font-size: 13.5px; }
