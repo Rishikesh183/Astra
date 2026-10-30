@@ -4,6 +4,7 @@ claims with verdicts on the right. `physics-witness serve` starts it."""
 from __future__ import annotations
 
 import tempfile
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 
 from .config import Settings
-from .samples import load_samples
+from .samples import fetch_missing, load_samples
 from .store import VIDEO_EXTS, RunStore
 
 STATIC = Path(__file__).parent / "static"
@@ -25,6 +26,9 @@ def create_app(data_dir: Path = Path("data/claims"), settings: Settings | None =
 
     @asynccontextmanager
     async def lifespan(_app):
+        if store.shared:          # sample clips kept out of git live in the bucket; fetch them in the background
+            threading.Thread(target=fetch_missing, args=(load_samples(store.settings.samples_file), store.backend),
+                             daemon=True).start()
         yield
         store.shutdown()
 

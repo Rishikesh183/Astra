@@ -8,7 +8,10 @@
                   "lie_sentence": "...", "place": "", "date": "", "license": "...",
                   "source_url": "", "description": "..."}]}
 
-`video` is relative to the samples file. Entries whose video file is missing
+`video` is relative to the samples file. With PW_STORE=supabase, a clip that
+is not on disk (e.g. git-ignored, so absent on a deployed server) is fetched
+at start-up from the private bucket as `samples/<file name>`; put it there with
+`physics-witness supabase samples`. Entries whose video is still missing
 are listed as unavailable instead of failing, so a sample can be described in
 the file before its clip is added. Running a sample twice reuses the cached
 model replies, so after the first run a sample costs nothing and answers the
@@ -75,6 +78,28 @@ def load_samples(path: Path | None) -> list[Sample]:
                           **{k: str(item.get(k) or "") for k in
                              ("lie_sentence", "place", "date", "license", "source_url", "description")}))
     return out
+
+
+SAMPLES_PREFIX = "samples/"
+
+
+def remote_name(sample: Sample) -> str:
+    return SAMPLES_PREFIX + sample.video.name
+
+
+def fetch_missing(samples: list[Sample], backend) -> list[str]:
+    """Download sample clips that are missing on disk from the shared bucket.
+    Returns the ids fetched. A clip that is not in the bucket stays unavailable."""
+    fetched = []
+    for s in samples:
+        if s.available:
+            continue
+        try:
+            if backend.get_file(remote_name(s), s.video):
+                fetched.append(s.id)
+        except Exception as exc:          # a sample is never worth failing start-up for
+            print(f"physics-witness: could not fetch sample {s.id}: {exc}")
+    return fetched
 
 
 def check_samples(path: Path) -> list[str]:

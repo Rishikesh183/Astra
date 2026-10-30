@@ -168,6 +168,29 @@ class SupabaseBackend:
             done.append(obj)
         return done
 
+    def put_file(self, name: str, local: Path) -> None:
+        """Upload one file to the bucket under `name` (e.g. samples/dallas.mp4)."""
+        ctype = mimetypes.guess_type(local.name)[0] or "application/octet-stream"
+        with open(local, "rb") as fh:
+            self._check(self._http.post(f"/storage/v1/object/{self._object(name)}", content=fh.read(),
+                                        headers={"Content-Type": ctype, "x-upsert": "true"}), f"upload {name}")
+
+    def get_file(self, name: str, dest: Path) -> bool:
+        """Download `name` from the bucket to `dest`. False if there is no such object."""
+        with self._http.stream("GET", f"/storage/v1/object/{self._object(name)}") as r:
+            if r.status_code in (400, 404):
+                return False
+            if r.is_error:
+                r.read()
+                self._check(r, f"download {name}")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            tmp = dest.with_name(dest.name + ".part")
+            with open(tmp, "wb") as fh:
+                for chunk in r.iter_bytes():
+                    fh.write(chunk)
+        tmp.replace(dest)
+        return True
+
     def file_url(self, run_id: str, rel: str) -> str | None:
         r = self._http.post(f"/storage/v1/object/sign/{self._object(f'{run_id}/{rel}')}",
                             json={"expiresIn": SIGNED_URL_TTL_S})
