@@ -48,7 +48,7 @@ nebius profile create            # logs in through the browser and picks the pro
 nebius update                    # if the version is older than 0.12.277
 ```
 
-**The third sample (`intersection-true`):** its video `demo/videos/dallas.mp4` is git-ignored and from a YouTube compilation, so it isn't on GitHub, and the deployed site will show that sample as unavailable. Two samples is acceptable. Tell the user, and offer the option of committing a public-domain clip (for example the Florida trooper dashcam) as the third sample before deploying.
+**The third sample (`intersection-true`):** its video `demo/videos/dallas.mp4` is git-ignored (it comes from a YouTube compilation), so it isn't on GitHub. Run `physics-witness supabase samples` locally. It uploads every local sample clip to the private Supabase bucket under `samples/`, and the deployed server downloads any missing clip from there when it starts (it needs `PW_STORE=supabase`). Without this, the deployed site shows that sample as "Video not added yet".
 
 ## Step 2: Warm the shared cache (local, uses some tokens)
 

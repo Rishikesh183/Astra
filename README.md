@@ -151,7 +151,7 @@ Any server instance can then list, show, cancel and delete any claim. A run exec
 
 The home page lists every claim as a card (thumbnail, verdict counts, length, cost), and each claim has its own link, `/claims/<id>`. For visitors without footage, **No video? Try a sample** opens ready-made claims: real dashcam clips with a true story or a story with one lie in it (highlighted).
 
-Samples are data, not code: edit `demo/samples.json` (or point `PW_SAMPLES` at another file). Each entry has an `id`, `title`, `label` (`real` or `liar`), `video` (relative to the file), `story`, and for liar stories the exact `lie_sentence`. Videos that aren't committed (e.g. `demo/videos/`, git-ignored) show as "not added yet" until the file is there. Check the file with:
+Samples are data, not code: edit `demo/samples.json` (or point `PW_SAMPLES` at another file). Each entry has an `id`, `title`, `label` (`real` or `liar`), `video` (relative to the file), `story`, and for liar stories the exact `lie_sentence`. Videos that aren't committed (e.g. `demo/videos/`, git-ignored) show as "not added yet" until the file is there. On a deployed server, which only has what's in git, run `physics-witness supabase samples` once from the machine that has the clips. It uploads them to the private bucket as `samples/<file name>`, and a server with `PW_STORE=supabase` downloads any missing clip from there when it starts. Check the file with:
 
 ```bash
 physics-witness samples

@@ -286,6 +286,24 @@ def _cmd_supabase_migrate(args) -> int:
     return 0
 
 
+def _cmd_supabase_samples(args) -> int:
+    """Upload the sample clips on this machine to the bucket, so a deployed
+    server (which only has what is in git) can offer every sample."""
+    from .samples import load_samples, remote_name
+    backend = _supabase_backend()
+    samples = load_samples(Settings.from_env().samples_file)
+    up = 0
+    for s in samples:
+        if not s.available:
+            print(f"skip {s.id}: no video at {s.video}")
+            continue
+        backend.put_file(remote_name(s), s.video)
+        up += 1
+        print(f"uploaded {s.id}  -> {backend.bucket}/{remote_name(s)}  ({s.video.stat().st_size / 1048576:.1f} MB)")
+    print(f"\n{up} sample clips uploaded. Restart the deployed server to pick them up.")
+    return 0
+
+
 def _cmd_serve(args) -> int:
     import uvicorn
 
@@ -390,6 +408,8 @@ def main(argv: list[str] | None = None) -> int:
     sm2.add_argument("--cache", action="store_true", help="also copy the local model-reply cache")
     sm2.add_argument("--force", action="store_true", help="overwrite claims already in Supabase")
     sm2.set_defaults(fn=_cmd_supabase_migrate)
+    sbs.add_parser("samples", help="upload this machine's sample clips, so a deployed server can offer them"
+                   ).set_defaults(fn=_cmd_supabase_samples)
 
     w = sub.add_parser("serve", help="start the web app")
     w.add_argument("--data", type=Path, default=Path("data/claims"))

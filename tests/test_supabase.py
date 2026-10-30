@@ -127,6 +127,10 @@ class FakeSupabase:
                     return httpx.Response(409, json={"error": "Duplicate"})
                 self.objects[obj] = request.content
                 return httpx.Response(200, json={"Key": obj})
+            if request.method == "GET":
+                if obj not in self.objects:
+                    return httpx.Response(400, json={"error": "Object not found"})
+                return httpx.Response(200, content=self.objects[obj])
             if request.method == "DELETE":
                 for prefix in json.loads(request.content).get("prefixes", []):
                     self.objects.pop(f"{bucket}/{prefix}", None)
@@ -349,4 +353,46 @@ def test_uploads_over_the_limit_are_refused(tmp_path, monkeypatch):
         r = http.post("/api/claims", files={"video": ("big.mp4", b"x" * 4096, "video/mp4")}, data={"story": STORY})
     assert r.status_code == 413 and "40 MB" in r.json()["detail"]
     assert st.list() == []
+    st.shutdown()
+
+
+# --- sample clips kept out of git ------------------------------------------------------------------
+
+def write_samples(root, clip_name="dallas.mp4"):
+    (root / "videos").mkdir(parents=True)
+    f = root / "samples.json"
+    f.write_text(json.dumps({"samples": [{"id": "intersection-true", "title": "Intersection", "label": "real",
+                                          "video": f"videos/{clip_name}", "story": STORY, "license": "test"}]}),
+                 encoding="utf-8")
+    return f
+
+
+def test_sample_clips_come_from_the_bucket_on_a_deployed_server(clip, tmp_path, monkeypatch, capsys):
+    fake = FakeSupabase()
+    laptop = write_samples(tmp_path / "laptop")
+    (tmp_path / "laptop" / "videos" / "dallas.mp4").write_bytes(clip.read_bytes())
+    monkeypatch.setattr(cli, "_supabase_backend", lambda: backend(fake))
+    monkeypatch.setenv("PW_SAMPLES", str(laptop))
+    assert cli.main(["supabase", "samples"]) == 0
+    assert "uploaded intersection-true" in capsys.readouterr().out
+    assert fake.objects["claims/samples/dallas.mp4"] == clip.read_bytes()
+
+    server = write_samples(tmp_path / "server")                   # the deployed copy: no clip on disk
+    settings = Settings(offline=True, cache_dir=tmp_path / "cache", samples_file=server)
+    st = RunStore(tmp_path / "claims", settings, backend=backend(fake))
+    with TestClient(create_app(store=st)) as http:
+        assert wait_for(lambda: http.get("/api/samples").json()[0]["available"])
+        assert http.get("/api/samples/intersection-true/video").content == clip.read_bytes()
+        assert http.post("/api/samples/intersection-true/try").status_code == 202
+    assert not list((tmp_path / "server" / "videos").glob("*.part"))
+    st.shutdown()
+
+
+def test_a_sample_missing_from_the_bucket_stays_unavailable(tmp_path):
+    server = write_samples(tmp_path / "server", "nowhere.mp4")
+    settings = Settings(offline=True, cache_dir=tmp_path / "cache", samples_file=server)
+    st = RunStore(tmp_path / "claims", settings, backend=backend(FakeSupabase()))
+    with TestClient(create_app(store=st)) as http:
+        time.sleep(0.3)
+        assert http.get("/api/samples").json()[0]["available"] is False
     st.shutdown()
